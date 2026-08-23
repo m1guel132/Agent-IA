@@ -13,17 +13,17 @@ import json
 import logging
 import uuid
 
-from gwen_os.domain.entities import Nota
-from gwen_os.domain.entities.nota import OrigenNota
-from gwen_os.domain.ports.llm_port import LLMPort
-from gwen_os.domain.ports.notion_port import NotionPort
-from gwen_os.domain.ports.obsidian_port import ObsidianPort
-from gwen_os.domain.ports.vector_store_port import VectorStorePort
-from gwen_os.use_cases.agente import Agente, EstadoResultado, Resultado
+from agent_ia.domain.entities import Nota
+from agent_ia.domain.entities.nota import OrigenNota
+from agent_ia.domain.ports.llm_port import LLMPort
+from agent_ia.domain.ports.notion_port import NotionPort
+from agent_ia.domain.ports.obsidian_port import ObsidianPort
+from agent_ia.domain.ports.vector_store_port import VectorStorePort
+from agent_ia.use_cases.agente import Agente, EstadoResultado, Resultado
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT_CLASIFICAR = """Eres el AgenteCurador de Gwen OS, un sistema de gestión de conocimiento personal.
+SYSTEM_PROMPT_CLASIFICAR = """Eres el AgenteCurador de Agent IA, un sistema de gestión de conocimiento personal.
 Tu trabajo es categorizar notas del Segundo Cerebro del usuario.
 
 Dado el contenido de una nota, debes:
@@ -40,7 +40,7 @@ Responde SIEMPRE en JSON con esta estructura exacta:
 }
 """
 
-SYSTEM_PROMPT_ORGANIZAR = """Eres el AgenteCurador de Gwen OS.
+SYSTEM_PROMPT_ORGANIZAR = """Eres el AgenteCurador de Agent IA.
 Tu trabajo es detectar notas desorganizadas (huérfanas, sin área, duplicadas)
 y proponer acciones de organización.
 

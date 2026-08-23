@@ -1,4 +1,4 @@
-"""HUD de Gwen OS — Interfaz web local con Streamlit.
+"""HUD de Agent IA — Interfaz web local con Streamlit.
 
 Implementa el wireframe del SRS: chat con Hermes a la izquierda,
 panel de agentes + sistema + próximo repaso a la derecha.
@@ -15,7 +15,7 @@ import streamlit as st
 # ──────────────────────────────────────────────────────────────
 
 st.set_page_config(
-    page_title="Gwen OS",
+    page_title="Agent IA",
     page_icon="🧠",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -133,7 +133,7 @@ def send_message(mensaje: str) -> dict:
         return {
             "estado": "error",
             "mensaje": "❌ No se pudo conectar con el API Gateway.\n\n"
-            "Asegúrate de que `gwen-api` esté corriendo en el puerto 8000.",
+            "Asegúrate de que `agent-api` esté corriendo en el puerto 8000.",
             "agente": "Sistema",
         }
     except Exception as e:
@@ -165,7 +165,7 @@ status_text = "Activo" if health.get("estado") == "activo" else "API desconectad
 st.markdown(
     f"""
     <div class="gwen-header">
-        <h1>🧠 Gwen OS</h1>
+        <h1>🧠 Agent IA</h1>
         <span class="status">{status_icon} {status_text}</span>
     </div>
     """,
@@ -253,11 +253,11 @@ with col_chat:
 
 
 def main() -> None:
-    """Entry point para el script `gwen-hud`."""
+    """Entry point para el script `agent-hud`."""
     import subprocess
     import sys
 
-    from gwen_os.infrastructure.config import get_settings
+    from agent_ia.infrastructure.config import get_settings
 
     settings = get_settings()
     subprocess.run(

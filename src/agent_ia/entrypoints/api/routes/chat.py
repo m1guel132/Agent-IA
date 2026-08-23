@@ -1,4 +1,4 @@
-"""Ruta /chat — punto de entrada conversacional de Gwen OS.
+"""Ruta /chat — punto de entrada conversacional de Agent IA.
 
 Recibe mensajes del usuario y los enruta a Hermes (orquestador).
 Soporta tanto peticiones simples como confirmaciones de propuestas.
@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from fastapi import APIRouter
 
-from gwen_os.entrypoints.api.dependencies import get_hermes
+from agent_ia.entrypoints.api.dependencies import get_hermes
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 

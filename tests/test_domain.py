@@ -1,7 +1,7 @@
 import pytest
 from datetime import date, timedelta
 
-from gwen_os.domain.entities import Area, Nota, Tarea, Habito, ItemEstudio, TipoArea, EstadoTarea
+from agent_ia.domain.entities import Area, Nota, Tarea, Habito, ItemEstudio, TipoArea, EstadoTarea
 
 
 def test_area_creation():

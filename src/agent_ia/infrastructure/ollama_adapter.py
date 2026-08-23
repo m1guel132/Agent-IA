@@ -10,8 +10,8 @@ import logging
 
 from ollama import AsyncClient
 
-from gwen_os.domain.ports.llm_port import LLMPort, LLMResponse
-from gwen_os.infrastructure.config import Settings
+from agent_ia.domain.ports.llm_port import LLMPort, LLMResponse
+from agent_ia.infrastructure.config import Settings
 
 logger = logging.getLogger(__name__)
 

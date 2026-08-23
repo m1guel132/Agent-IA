@@ -1,4 +1,4 @@
-"""Hermes — orquestador central de Gwen OS.
+"""Hermes — orquestador central de Agent IA.
 
 Hermes es el agente orquestador único (RF5.1) que:
 - Recibe mensajes del usuario
@@ -16,12 +16,12 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from gwen_os.domain.ports.llm_port import LLMPort
-from gwen_os.use_cases.agente import Agente, EstadoResultado, Resultado
+from agent_ia.domain.ports.llm_port import LLMPort
+from agent_ia.use_cases.agente import Agente, EstadoResultado, Resultado
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT_HERMES = """Eres Hermes, el orquestador central de Gwen OS, el copiloto personal de gestión de conocimiento y estudio de Miguel.
+SYSTEM_PROMPT_HERMES = """Eres Hermes, el orquestador central de Agent IA, el copiloto personal de gestión de conocimiento y estudio de Miguel.
 
 Tu personalidad:
 - Eres directo, eficiente y amigable.
@@ -57,7 +57,7 @@ class MensajeChat:
 
 
 class Hermes:
-    """Orquestador central de Gwen OS.
+    """Orquestador central de Agent IA.
 
     Centraliza la memoria de la conversación y delega a agentes
     especializados según la intención del usuario.

@@ -1,4 +1,4 @@
-"""Dependency injection — inicialización de componentes de Gwen OS.
+"""Dependency injection — inicialización de componentes de Agent IA.
 
 Crea y cachea las instancias de todos los adaptadores, agentes y
 el orquestador Hermes. Sigue el patrón de composición root de
@@ -10,16 +10,16 @@ from __future__ import annotations
 import logging
 from functools import lru_cache
 
-from gwen_os.infrastructure.config import get_settings
-from gwen_os.infrastructure.ollama_adapter import OllamaAdapter
-from gwen_os.infrastructure.chroma_adapter import ChromaAdapter
-from gwen_os.infrastructure.obsidian_adapter import ObsidianAdapter
-from gwen_os.infrastructure.notion_adapter import NotionAdapter
-from gwen_os.use_cases.agente_curador import AgenteCurador
-from gwen_os.use_cases.agente_estudio import AgenteEstudio
-from gwen_os.use_cases.agente_sync import AgenteSync
-from gwen_os.use_cases.agente_plan import AgentePlan
-from gwen_os.use_cases.hermes import Hermes
+from agent_ia.infrastructure.config import get_settings
+from agent_ia.infrastructure.ollama_adapter import OllamaAdapter
+from agent_ia.infrastructure.chroma_adapter import ChromaAdapter
+from agent_ia.infrastructure.obsidian_adapter import ObsidianAdapter
+from agent_ia.infrastructure.notion_adapter import NotionAdapter
+from agent_ia.use_cases.agente_curador import AgenteCurador
+from agent_ia.use_cases.agente_estudio import AgenteEstudio
+from agent_ia.use_cases.agente_sync import AgenteSync
+from agent_ia.use_cases.agente_plan import AgentePlan
+from agent_ia.use_cases.hermes import Hermes
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ def get_hermes() -> Hermes:
     hermes.registrar_agente("sync", sync)
     hermes.registrar_agente("plan", plan)
 
-    logger.info("Gwen OS inicializado: Hermes + 4 agentes registrados")
+    logger.info("Agent IA inicializado: Hermes + 4 agentes registrados")
     return hermes
 
 

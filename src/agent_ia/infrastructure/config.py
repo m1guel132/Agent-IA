@@ -1,7 +1,7 @@
-"""Configuración centralizada de Gwen OS.
+"""Configuración centralizada de Agent IA.
 
 Carga variables de entorno desde .env usando pydantic-settings.
-Todas las variables usan el prefijo GWEN_ para evitar colisiones.
+Todas las variables usan el prefijo AGENT_ para evitar colisiones.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     """Configuración del sistema completo."""
 
     model_config = SettingsConfigDict(
-        env_prefix="GWEN_",
+        env_prefix="AGENT_",
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",

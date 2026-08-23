@@ -12,11 +12,11 @@ from datetime import date
 
 from notion_client import AsyncClient as NotionAsyncClient
 
-from gwen_os.domain.entities import Area, Nota, Tarea
-from gwen_os.domain.entities.area import TipoArea
-from gwen_os.domain.entities.tarea import EstadoTarea
-from gwen_os.domain.ports.notion_port import NotionPort
-from gwen_os.infrastructure.config import Settings
+from agent_ia.domain.entities import Area, Nota, Tarea
+from agent_ia.domain.entities.area import TipoArea
+from agent_ia.domain.entities.tarea import EstadoTarea
+from agent_ia.domain.ports.notion_port import NotionPort
+from agent_ia.infrastructure.config import Settings
 
 logger = logging.getLogger(__name__)
 

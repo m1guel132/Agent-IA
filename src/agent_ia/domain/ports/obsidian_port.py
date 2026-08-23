@@ -10,7 +10,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from gwen_os.domain.entities import Nota
+from agent_ia.domain.entities import Nota
 
 
 class ObsidianPort(ABC):

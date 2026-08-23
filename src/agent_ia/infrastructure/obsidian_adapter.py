@@ -9,9 +9,9 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from gwen_os.domain.entities import Nota
-from gwen_os.domain.ports.obsidian_port import ObsidianPort
-from gwen_os.infrastructure.config import Settings
+from agent_ia.domain.entities import Nota
+from agent_ia.domain.ports.obsidian_port import ObsidianPort
+from agent_ia.infrastructure.config import Settings
 
 logger = logging.getLogger(__name__)
 

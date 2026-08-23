@@ -32,7 +32,7 @@
         },
         "options": {}
       },
-      "name": "Llamada a Gwen API (Curador)",
+      "name": "Llamada a Agent IA API (Curador)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 3,
       "position": [450, 300]
@@ -43,7 +43,7 @@
       "main": [
         [
           {
-            "node": "Llamada a Gwen API (Curador)",
+            "node": "Llamada a Agent IA API (Curador)",
             "type": "main",
             "index": 0
           }
@@ -55,5 +55,5 @@
     "executionOrder": "v1"
   },
   "active": false,
-  "tags": ["gwen-os"]
+  "tags": ["agent-ia"]
 }

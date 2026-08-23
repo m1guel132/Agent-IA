@@ -1,4 +1,4 @@
-"""API Gateway de Gwen OS — FastAPI en :8000.
+"""API Gateway de Agent IA — FastAPI en :8000.
 
 Punto de entrada HTTP del sistema. Todas las interfaces
 (HUD, CLI, Telegram) se comunican con el sistema a través
@@ -13,8 +13,8 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from gwen_os.entrypoints.api.routes.chat import router as chat_router
-from gwen_os.infrastructure.config import get_settings
+from agent_ia.entrypoints.api.routes.chat import router as chat_router
+from agent_ia.infrastructure.config import get_settings
 
 logging.basicConfig(
     level=logging.INFO,
@@ -23,7 +23,7 @@ logging.basicConfig(
 )
 
 app = FastAPI(
-    title="Gwen OS — API Gateway",
+    title="Agent IA — API Gateway",
     description=(
         "Copiloto personal de gestión de conocimiento y estudio. "
         "API Gateway que conecta todas las interfaces con Hermes (orquestador)."
@@ -48,7 +48,7 @@ app.include_router(chat_router)
 async def root():
     """Endpoint raíz — verificación rápida de que el API está activo."""
     return {
-        "sistema": "Gwen OS",
+        "sistema": "Agent IA",
         "version": "0.1.0",
         "estado": "activo",
         "mensaje": "API Gateway operativo. Usa POST /chat/ para conversar con Hermes.",
@@ -58,7 +58,7 @@ async def root():
 @app.get("/health", tags=["system"])
 async def health():
     """Health check del sistema completo."""
-    from gwen_os.entrypoints.api.dependencies import get_hermes
+    from agent_ia.entrypoints.api.dependencies import get_hermes
 
     hermes = get_hermes()
     return {
@@ -68,10 +68,10 @@ async def health():
 
 
 def start() -> None:
-    """Entry point para el script `gwen-api`."""
+    """Entry point para el script `agent-api`."""
     settings = get_settings()
     uvicorn.run(
-        "gwen_os.entrypoints.api.main:app",
+        "agent_ia.entrypoints.api.main:app",
         host=settings.api_host,
         port=settings.api_port,
         reload=True,

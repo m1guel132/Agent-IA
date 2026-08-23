@@ -9,7 +9,7 @@ Será responsable de:
 
 from __future__ import annotations
 
-from gwen_os.use_cases.agente import Agente, EstadoResultado, Resultado
+from agent_ia.use_cases.agente import Agente, EstadoResultado, Resultado
 
 
 class AgenteEstudio(Agente):

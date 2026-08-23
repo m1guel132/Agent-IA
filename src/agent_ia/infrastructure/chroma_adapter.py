@@ -10,13 +10,13 @@ import logging
 
 import chromadb
 
-from gwen_os.domain.ports.llm_port import LLMPort
-from gwen_os.domain.ports.vector_store_port import SearchResult, VectorStorePort
-from gwen_os.infrastructure.config import Settings
+from agent_ia.domain.ports.llm_port import LLMPort
+from agent_ia.domain.ports.vector_store_port import SearchResult, VectorStorePort
+from agent_ia.infrastructure.config import Settings
 
 logger = logging.getLogger(__name__)
 
-COLLECTION_NAME = "gwen_os_knowledge"
+COLLECTION_NAME = "agent_ia_knowledge"
 
 
 class ChromaAdapter(VectorStorePort):
@@ -33,7 +33,7 @@ class ChromaAdapter(VectorStorePort):
         self._client = chromadb.PersistentClient(path=str(persist_dir))
         self._collection = self._client.get_or_create_collection(
             name=COLLECTION_NAME,
-            metadata={"description": "Base de conocimiento de Gwen OS"},
+            metadata={"description": "Base de conocimiento de Agent IA"},
         )
         logger.info("ChromaDB inicializado en %s", persist_dir)
 

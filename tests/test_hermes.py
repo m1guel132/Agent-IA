@@ -1,9 +1,9 @@
 import pytest
 from datetime import datetime
 
-from gwen_os.use_cases.hermes import Hermes, MensajeChat
-from gwen_os.use_cases.agente import Agente, EstadoResultado, Resultado
-from gwen_os.domain.ports.llm_port import LLMPort, LLMResponse
+from agent_ia.use_cases.hermes import Hermes, MensajeChat
+from agent_ia.use_cases.agente import Agente, EstadoResultado, Resultado
+from agent_ia.domain.ports.llm_port import LLMPort, LLMResponse
 
 
 class MockLLM(LLMPort):

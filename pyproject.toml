@@ -1,7 +1,7 @@
 [project]
-name = "gwen-os"
+name = "agent-ia"
 version = "0.1.0"
-description = "Copiloto personal de gestión de conocimiento y estudio — Gwen OS"
+description = "Copiloto personal de gestión de conocimiento y estudio — Agent IA"
 readme = "README.md"
 authors = [
     { name = "Miguel Ángel Polo Castro", email = "miguelpolo415@gmail.com" }
@@ -30,8 +30,8 @@ dependencies = [
 ]
 
 [project.scripts]
-gwen-api = "gwen_os.entrypoints.api.main:start"
-gwen-hud = "gwen_os.entrypoints.hud.app:main"
+agent-api = "agent_ia.entrypoints.api.main:start"
+agent-hud = "agent_ia.entrypoints.hud.app:main"
 
 [build-system]
 requires = ["uv_build>=0.12.5,<0.13.0"]

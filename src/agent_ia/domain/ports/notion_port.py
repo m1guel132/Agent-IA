@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from gwen_os.domain.entities import Area, Nota, Tarea
+from agent_ia.domain.entities import Area, Nota, Tarea
 
 
 class NotionPort(ABC):
