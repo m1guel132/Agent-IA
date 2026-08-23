@@ -1,0 +1,69 @@
+"""Dependency injection — inicialización de componentes de Gwen OS.
+
+Crea y cachea las instancias de todos los adaptadores, agentes y
+el orquestador Hermes. Sigue el patrón de composición root de
+arquitectura hexagonal.
+"""
+
+from __future__ import annotations
+
+import logging
+from functools import lru_cache
+
+from gwen_os.infrastructure.config import get_settings
+from gwen_os.infrastructure.ollama_adapter import OllamaAdapter
+from gwen_os.infrastructure.chroma_adapter import ChromaAdapter
+from gwen_os.infrastructure.obsidian_adapter import ObsidianAdapter
+from gwen_os.infrastructure.notion_adapter import NotionAdapter
+from gwen_os.use_cases.agente_curador import AgenteCurador
+from gwen_os.use_cases.agente_estudio import AgenteEstudio
+from gwen_os.use_cases.agente_sync import AgenteSync
+from gwen_os.use_cases.agente_plan import AgentePlan
+from gwen_os.use_cases.hermes import Hermes
+
+logger = logging.getLogger(__name__)
+
+
+@lru_cache
+def get_hermes() -> Hermes:
+    """Composition root: crea y conecta todos los componentes."""
+    settings = get_settings()
+
+    # --- Infrastructure adapters ---
+    llm = OllamaAdapter(settings)
+    vector_store = ChromaAdapter(settings, llm)
+    obsidian = ObsidianAdapter(settings)
+    notion = NotionAdapter(settings)
+
+    # --- Agents ---
+    curador = AgenteCurador(
+        llm=llm,
+        notion=notion,
+        obsidian=obsidian,
+        vector_store=vector_store,
+    )
+    estudio = AgenteEstudio()
+    sync = AgenteSync()
+    plan = AgentePlan()
+
+    # --- Orchestrator ---
+    hermes = Hermes(llm=llm)
+    hermes.registrar_agente("curador", curador)
+    hermes.registrar_agente("estudio", estudio)
+    hermes.registrar_agente("sync", sync)
+    hermes.registrar_agente("plan", plan)
+
+    logger.info("Gwen OS inicializado: Hermes + 4 agentes registrados")
+    return hermes
+
+
+@lru_cache
+def get_system_status() -> dict:
+    """Devuelve información del estado del sistema (para el HUD)."""
+    settings = get_settings()
+    return {
+        "ollama_url": settings.ollama_base_url,
+        "ollama_model": settings.ollama_model,
+        "vault_path": str(settings.vault_path),
+        "n8n_url": settings.n8n_base_url,
+    }

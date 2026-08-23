@@ -1,0 +1,551 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[spanish,es-tabla]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=2.3cm]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage[colorlinks=true,linkcolor=teal!60!black,urlcolor=teal!60!black,citecolor=teal!60!black]{hyperref}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,shapes.geometric,shapes.misc,shapes.multipart,calc,fit}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{caption}
+\usepackage{parskip}
+\usepackage{tabularx}
+\usepackage{amssymb}
+
+\definecolor{amberbg}{RGB}{250,238,218}
+\definecolor{amberln}{RGB}{133,79,11}
+\definecolor{tealbg}{RGB}{225,245,238}
+\definecolor{tealln}{RGB}{8,80,65}
+\definecolor{bluebg}{RGB}{230,241,251}
+\definecolor{blueln}{RGB}{12,68,124}
+\definecolor{purplebg}{RGB}{238,237,254}
+\definecolor{purpleln}{RGB}{60,52,137}
+\definecolor{graybg}{RGB}{241,239,232}
+\definecolor{grayln}{RGB}{68,68,65}
+
+\tikzset{
+  box/.style={draw, rounded corners=2pt, align=center, font=\scriptsize, inner sep=4pt, text width=#1},
+  box/.default=2.6cm,
+  ifaceBox/.style={box=#1, fill=amberbg, draw=amberln}, ifaceBox/.default=2.6cm,
+  coreBox/.style={box=#1, fill=tealbg, draw=tealln}, coreBox/.default=2.6cm,
+  brainBox/.style={box=#1, fill=bluebg, draw=blueln}, brainBox/.default=2.6cm,
+  dataBox/.style={box=#1, fill=purplebg, draw=purpleln}, dataBox/.default=2.6cm,
+  usecase/.style={ellipse, draw, fill=tealbg, draw=tealln, minimum width=6.4cm, minimum height=1.35cm, align=center, font=\scriptsize},
+  classbox/.style={rectangle split, rectangle split parts=2, draw, rounded corners=1pt,
+    rectangle split part fill={purplebg,white}, align=left, font=\scriptsize, text width=3cm,
+    rectangle split part align={center,left}},
+  arr/.style={-{Latex[length=2mm,width=1.6mm]}, thin},
+  darr/.style={-{Latex[length=2mm,width=1.6mm]}, thin, dashed},
+  bidir/.style={{Latex[length=2mm,width=1.6mm]}-{Latex[length=2mm,width=1.6mm]}, thin},
+  gen/.style={-{Triangle[open,length=2.6mm,width=2.2mm]}, thin},
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\footnotesize Gwen OS --- Especificación de Requerimientos}
+\fancyhead[R]{\footnotesize \thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\titleformat{\section}{\Large\bfseries}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries}{\thesubsection}{0.6em}{}
+
+\title{\textbf{Gwen OS}\\[0.3cm]\Large Copiloto personal de Segundo Cerebro y Estudio\\[0.2cm]\large Especificación de Requerimientos de Software (SRS)}
+\author{Miguel Ángel Polo Castro}
+\date{\today}
+
+\begin{document}
+
+\begin{titlepage}
+\centering
+\vspace*{3cm}
+{\Huge\bfseries Gwen OS \par}
+\vspace{0.5cm}
+{\Large Copiloto personal de gestión de conocimiento y estudio \par}
+\vspace{1.5cm}
+{\large Especificación de Requerimientos de Software (SRS) \par}
+\vspace{0.3cm}
+{\large Ingeniería de Sistemas \par}
+\vspace{3cm}
+{\large Autor: Miguel Ángel Polo Castro \par}
+\vspace{0.3cm}
+{\large \today \par}
+\vfill
+{\small Este documento reemplaza formalmente al proyecto \emph{Software estudiantil Miguel Polo}, declarado obsoleto. \par}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+\section{Introducción y marco metodológico}
+
+Gwen OS es un copiloto personal de inteligencia artificial cuyo propósito es automatizar la organización, relación y mantenimiento del Segundo Cerebro (Notion + Obsidian) y del espacio de estudio de ingeniería de Miguel, reduciendo el trabajo manual actual mediante agentes de IA especializados.
+
+Este documento sigue la metodología de ingeniería de requerimientos de tres niveles:
+
+\begin{itemize}[leftmargin=1.4cm]
+  \item \textbf{Nivel 1 -- Negocio:} responde \emph{¿qué se debe hacer y por qué?}
+  \item \textbf{Nivel 2 -- Usuario:} responde \emph{¿para quién y qué necesita?}
+  \item \textbf{Nivel 3 -- Software:} responde \emph{¿cómo se construye?} (requerimientos funcionales y no funcionales)
+\end{itemize}
+
+El ciclo de trabajo aplicado en cada nivel es \textbf{elicitación} $\rightarrow$ \textbf{análisis} $\rightarrow$ \textbf{especificación} $\rightarrow$ \textbf{validación}, y la priorización de requerimientos utiliza el esquema \textbf{DINO} (Deseable, Importante, No implementable, Obligatorio).
+
+\subsection*{Glosario de siglas}
+\begin{longtable}{@{}p{2.6cm}p{11.5cm}@{}}
+\toprule
+Sigla & Significado \\
+\midrule
+\endhead
+RU & Requerimiento de usuario \\
+RF & Requerimiento funcional \\
+RNF & Requerimiento no funcional \\
+PKM & \emph{Personal Knowledge Management}, gestión de conocimiento personal \\
+ETL & \emph{Extract, Transform, Load}, pipeline de sincronización de datos \\
+RAG & \emph{Retrieval-Augmented Generation}, generación aumentada por recuperación vectorial \\
+EDA & Arquitectura orientada a eventos \\
+LLM & Modelo de lenguaje de gran escala \\
+SM-2 & Algoritmo clásico de repetición espaciada (usado por Anki) \\
+\bottomrule
+\end{longtable}
+
+\section{Nivel 1 --- Requerimiento de negocio}
+
+\begin{quote}
+\itshape
+Construir un copiloto personal de gestión de conocimiento y estudio que automatice la organización, relación y mantenimiento del Segundo Cerebro (Notion + Obsidian) y del espacio de estudio de ingeniería, reduciendo el trabajo manual actual y mejorando la calidad del aprendizaje, mediante agentes de IA especializados que operan sobre esa información en vez de requerir captura y orden manual constante.
+\end{quote}
+
+Este enunciado es la vara de medida de todo el documento: cualquier requerimiento que no reduzca manualidad ni mejore el aprendizaje debe cuestionarse antes de aceptarse.
+
+\section{Nivel 2 --- Requerimientos de usuario}
+
+Un solo stakeholder: \textbf{Miguel}, como estudiante de ingeniería de sistemas y persona.
+
+\begin{longtable}{@{}p{1.3cm}p{9.7cm}p{1.8cm}p{1.6cm}@{}}
+\toprule
+ID & Descripción & Actor & Prioridad \\
+\midrule
+\endhead
+RU1 & El usuario debe poder mantener su Segundo Cerebro (hábitos, notas, objetivos, proyectos, tareas, áreas) sin captura y organización 100\% manual. & Miguel & Alta \\
+RU2 & El usuario debe poder gestionar su Study Board de ingeniería vinculado al Segundo Cerebro. & Miguel & Alta \\
+RU3 & El usuario debe poder aplicar métodos de estudio (repetición espaciada, active recall, notas Cornell) dentro de ese espacio. & Miguel & Alta \\
+RU4 & El usuario debe poder conversar con un asistente que consulte y organice su información personal/académica. & Miguel & Media \\
+RU5 & El usuario debe poder delegar tareas a agentes especializados (curaduría, estudio, sincronización, planificación) en vez de uno genérico. & Miguel & Media \\
+RU6 & El usuario debe poder gestionar tareas/recordatorios sincronizados entre Todoist, Calendar y su Segundo Cerebro. & Miguel & Alta \\
+RU7 & El usuario debe poder acceder al sistema desde su teléfono. & Miguel & Media \\
+\bottomrule
+\end{longtable}
+
+Nota de alcance: los módulos de \emph{Finanzas} y el usuario secundario (madre de Miguel), presentes en el proyecto obsoleto, quedan fuera de este alcance por decisión explícita, y podrían retomarse en una fase futura si el sistema demuestra ser escalable (RNF1).
+
+\section{Nivel 3 --- Requerimientos de software}
+
+\subsection{Requerimientos funcionales}
+
+\subsubsection*{RU1 --- Segundo Cerebro sin manualidad (AgenteCurador)}
+\begin{longtable}{@{}p{1.5cm}p{11.2cm}p{1.7cm}@{}}
+\toprule
+ID & Descripción & Prioridad \\
+\midrule
+\endhead
+RF1.1 & El sistema debe sincronizar automáticamente Notion $\leftrightarrow$ Obsidian sin intervención manual (ETL). & Alta \\
+RF1.2 & El sistema debe categorizar y relacionar automáticamente notas/tareas nuevas según áreas y \emph{topics} existentes, usando el LLM local. & Alta \\
+RF1.3 & El sistema debe detectar posibles duplicados o notas huérfanas y sugerir su integración. & Media \\
+RF1.4 & El sistema debe permitir registrar cumplimiento de hábitos por lenguaje natural (voz/chat) en vez de edición manual de la base de datos. & Media \\
+RF1.5 & El sistema debe ejecutar un barrido periódico (cron, vía n8n) del inbox para organizar notas sin procesar. & Alta \\
+\bottomrule
+\end{longtable}
+
+\subsubsection*{RU2 --- Study Board (AgenteEstudio)}
+\begin{longtable}{@{}p{1.5cm}p{11.2cm}p{1.7cm}@{}}
+\toprule
+ID & Descripción & Prioridad \\
+\midrule
+\endhead
+RF2.1 & El Study Board debe mantenerse sincronizado y relacionado con el Segundo Cerebro. & Alta \\
+RF2.2 & El sistema debe integrarse con Google Drive para vincular documentos académicos al Study Board. & Media \\
+RF2.3 & El sistema debe integrarse con Canvas LMS para importar tareas y fechas límite académicas. & Media \\
+RF2.4 & El sistema debe preparar y organizar material de estudio listo para subir manualmente a NotebookLM (no automatizable por falta de API pública). & Baja \\
+RF2.5 & El sistema debe permitir consultar Gemini como agente externo de estrategia de aprendizaje, de forma explícita, nunca automática por defecto. & Baja \\
+\bottomrule
+\end{longtable}
+
+\subsubsection*{RU3 --- Métodos de estudio}
+\begin{longtable}{@{}p{1.5cm}p{11.2cm}p{1.7cm}@{}}
+\toprule
+ID & Descripción & Prioridad \\
+\midrule
+\endhead
+RF3.1 & El sistema debe generar y programar tarjetas de repetición espaciada (algoritmo tipo SM-2) desde las notas del Study Board. & Alta \\
+RF3.2 & El sistema debe notificar cuándo hay repasos pendientes. & Alta \\
+RF3.3 & El sistema debe ofrecer una plantilla reutilizable de notas Cornell en Notion/Obsidian. & Media \\
+RF3.4 & El sistema debe registrar el resultado de cada repaso (acertado/fallado) y ajustar la programación futura. & Alta \\
+\bottomrule
+\end{longtable}
+
+\subsubsection*{RU4 --- Asistente conversacional}
+\begin{longtable}{@{}p{1.5cm}p{11.2cm}p{1.7cm}@{}}
+\toprule
+ID & Descripción & Prioridad \\
+\midrule
+\endhead
+RF4.1 & El sistema debe permitir conversar por texto (HUD) y por voz bilingüe ES/EN. & Alta / Media \\
+RF4.2 & El asistente debe responder sobre el estado del Segundo Cerebro y del Study Board (pendientes, próximos repasos, notas recientes). & Alta \\
+RF4.3 & El asistente debe usar el LLM local por defecto para toda consulta con datos personales. & Alta \\
+RF4.4 & El sistema debe ser accesible por Telegram (gateway nativo de Hermes) como punto de entrada móvil. & Media \\
+\bottomrule
+\end{longtable}
+
+\subsubsection*{RU5 --- Agentes especializados}
+\begin{longtable}{@{}p{1.5cm}p{11.2cm}p{1.7cm}@{}}
+\toprule
+ID & Descripción & Prioridad \\
+\midrule
+\endhead
+RF5.1 & El sistema debe implementar Hermes como agente orquestador único, que delega en cuatro agentes especializados con dominio de datos separado: Curador, Estudio, Sincronización, Planificación. & Alta \\
+RF5.2 & Una falla en un agente delegado no debe bloquear al orquestador ni a los demás agentes (fallas silenciosas). & Alta \\
+RF5.3 & Debe poder añadirse un nuevo agente/habilidad sin modificar el dominio existente. & Alta \\
+RF5.4 & La habilidad de escritura de \texttt{AgenteCurador} sobre Notion/Obsidian debe operar en modo ``propone, no aplica solo'' hasta que el usuario confirme confianza suficiente (autonomía progresiva). & Alta \\
+\bottomrule
+\end{longtable}
+
+\subsubsection*{RU6 --- Tareas y recordatorios}
+\begin{longtable}{@{}p{1.5cm}p{11.2cm}p{1.7cm}@{}}
+\toprule
+ID & Descripción & Prioridad \\
+\midrule
+\endhead
+RF6.1 & El sistema debe sincronizar tareas bidireccionalmente con Todoist. & Alta \\
+RF6.2 & El sistema debe sincronizar eventos bidireccionalmente con Google Calendar. & Alta \\
+RF6.3 & El sistema debe emitir recordatorios proactivos de tareas próximas a vencer. & Media \\
+\bottomrule
+\end{longtable}
+
+\subsubsection*{RU7 --- Acceso móvil}
+\begin{longtable}{@{}p{1.5cm}p{11.2cm}p{1.7cm}@{}}
+\toprule
+ID & Descripción & Prioridad \\
+\midrule
+\endhead
+RF7.1 & El sistema debe exponer el gateway de mensajería nativo de Hermes (Telegram) como interfaz móvil. & Alta \\
+RF7.2 & La funcionalidad conversacional en móvil debe ser equivalente a la del HUD, dentro de las limitaciones de Telegram. & Media \\
+\bottomrule
+\end{longtable}
+
+\subsection{Requerimientos no funcionales}
+
+\begin{longtable}{@{}p{1.3cm}p{8.2cm}p{2.4cm}p{1.5cm}@{}}
+\toprule
+ID & Descripción & Categoría & Prioridad \\
+\midrule
+\endhead
+RNF1 & El sistema debe permitir incorporar nuevos agentes, integraciones o módulos sin reestructurar el dominio base (arquitectura hexagonal). & Escalabilidad & Alta \\
+RNF2 & Toda información personal debe procesarse por defecto con el LLM local; servicios externos (Gemini, NotebookLM) solo de forma explícita y opcional. & Privacidad & Alta \\
+RNF3 & Las respuestas conversacionales deben evitar \emph{cold-starts} del LLM (\texttt{keep\_alive}) manteniendo latencia aceptable. & Rendimiento & Media \\
+RNF4 & Los procesos en segundo plano (sincronización, telemetría) deben tolerar fallos de red sin pérdida de datos. & Disponibilidad & Media \\
+RNF5 & La interacción por voz debe soportar español e inglés sin configuración manual de idioma. & Usabilidad & Baja \\
+RNF6 & El código debe respetar estrictamente la separación \texttt{domain}/\texttt{use\_cases}/\texttt{infrastructure}/\texttt{entrypoints}. & Mantenibilidad & Alta \\
+RNF7 & El sistema debe operar en el entorno local (Windows) sin depender de infraestructura en la nube para sus funciones núcleo. & Portabilidad & Media \\
+\bottomrule
+\end{longtable}
+
+\section{Diagrama de casos de uso}
+
+\begin{center}
+\begin{tikzpicture}[node distance=0.55cm and 1.6cm, every node/.style={font=\scriptsize}]
+
+\begin{scope}[local bounding box=actor]
+  \draw (0,0) circle (0.22cm);
+  \draw (0,-0.22) -- (0,-0.95);
+  \draw (-0.3,-0.45) -- (0.3,-0.45);
+  \draw (0,-0.95) -- (-0.26,-1.35);
+  \draw (0,-0.95) -- (0.26,-1.35);
+\end{scope}
+\node[below=0.12cm of actor] (actorlabel) {Miguel};
+
+\node[usecase, right=3.4cm of actor] (uc1) {\textbf{Gestionar Segundo Cerebro}\\ \tiny Notas, hábitos, tareas, áreas};
+\node[usecase, below=0.45cm of uc1] (uc2) {\textbf{Gestionar Study Board}\\ \tiny Métodos de estudio y repaso};
+\node[usecase, below=0.45cm of uc2] (uc3) {\textbf{Conversar con el asistente}\\ \tiny Voz, chat y Telegram};
+\node[usecase, below=0.45cm of uc3] (uc4) {\textbf{Coordinar agentes especializados}\\ \tiny Curador, Estudio, Sync, Plan};
+\node[usecase, below=0.45cm of uc4] (uc5) {\textbf{Gestionar tareas y recordatorios}\\ \tiny Todoist, Calendar, multidispositivo};
+
+\node[draw, rounded corners, fit=(uc1)(uc2)(uc3)(uc4)(uc5), inner sep=0.45cm, label={[font=\small]above:Sistema}] (sysbox) {};
+
+\draw[thin] (actor.east) -- (uc1.west);
+\draw[thin] (actor.east) -- (uc2.west);
+\draw[thin] (actor.east) -- (uc3.west);
+\draw[thin] (actor.east) -- (uc4.west);
+\draw[thin] (actor.east) -- (uc5.west);
+
+\end{tikzpicture}
+\end{center}
+
+\section{Diagrama de clases}
+
+\subsection{Modelo de dominio}
+
+\begin{center}
+\begin{tikzpicture}[node distance=1.3cm and 1.6cm]
+
+\node[classbox] (area) {\textbf{Área} \nodepart{two} + id: str\\ + nombre: str\\ + tipo: str};
+\node[classbox, below left=1.5cm and 1.9cm of area] (nota) {\textbf{Nota} \nodepart{two} + id: str\\ + titulo: str\\ + tags: str[]};
+\node[classbox, below=1.5cm of area] (tarea) {\textbf{Tarea} \nodepart{two} + id: str\\ + estado: str\\ + fecha\_limite: date};
+\node[classbox, below right=1.5cm and 1.9cm of area] (habito) {\textbf{Hábito} \nodepart{two} + id: str\\ + nombre: str\\ + racha: int};
+\node[classbox, below=1.3cm of nota] (item) {\textbf{ItemEstudio} \nodepart{two} + id: str\\ + facilidad: float\\ + sig\_repaso: date};
+
+\draw[thin] (area.west) -- (nota.north) node[midway, above, sloped, font=\tiny] {1 \ \ *};
+\draw[thin] (area.south) -- (tarea.north) node[midway, right, font=\tiny] {1 \ *};
+\draw[thin] (area.east) -- (habito.north) node[midway, above, sloped, font=\tiny] {1 \ \ *};
+\draw[thin] (nota.south) -- (item.north) node[midway, right, font=\tiny] {1 \ 0..1};
+
+\end{tikzpicture}
+\end{center}
+
+Área (1) contiene (*) muchas notas, tareas y hábitos. Una nota puede generar opcionalmente (0..1) un \texttt{ItemEstudio} para repetición espaciada, conectando el Study Board al Segundo Cerebro sin duplicar la base de datos.
+
+\subsection{Jerarquía de agentes}
+
+\begin{center}
+\begin{tikzpicture}[node distance=1.6cm and 0.7cm]
+
+\node[rectangle split, rectangle split parts=3, draw, rounded corners=1pt,
+  rectangle split part fill={bluebg,bluebg,white}, align=left, font=\scriptsize, text width=4.6cm]
+  (agente) {\centering {\tiny «abstract»}\\ \textbf{Agente} \nodepart{two} + nombre: str\\ + dominio: str \nodepart{three} + ejecutar(): Resultado};
+
+\node[rectangle split, rectangle split parts=2, draw, rounded corners=1pt, rectangle split part fill={tealbg,white}, align=left, font=\scriptsize, text width=2.6cm, below left=2.1cm and 3.4cm of agente] (curador) {\textbf{AgenteCurador} \nodepart{two} + ejecutar()};
+\node[rectangle split, rectangle split parts=2, draw, rounded corners=1pt, rectangle split part fill={tealbg,white}, align=left, font=\scriptsize, text width=2.6cm, below left=2.1cm and 0.3cm of agente] (estudio) {\textbf{AgenteEstudio} \nodepart{two} + ejecutar()};
+\node[rectangle split, rectangle split parts=2, draw, rounded corners=1pt, rectangle split part fill={tealbg,white}, align=left, font=\scriptsize, text width=2.6cm, below right=2.1cm and 0.3cm of agente] (sync) {\textbf{AgenteSync} \nodepart{two} + ejecutar()};
+\node[rectangle split, rectangle split parts=2, draw, rounded corners=1pt, rectangle split part fill={tealbg,white}, align=left, font=\scriptsize, text width=2.6cm, below right=2.1cm and 3.4cm of agente] (plan) {\textbf{AgentePlan} \nodepart{two} + ejecutar()};
+
+\draw[gen] (curador.north) -- (agente.south);
+\draw[gen] (estudio.north) -- (agente.south);
+\draw[gen] (sync.north) -- (agente.south);
+\draw[gen] (plan.north) -- (agente.south);
+
+\node[below=0.15cm of curador, font=\tiny] {usa: Nota};
+\node[below=0.15cm of estudio, font=\tiny] {usa: ItemEstudio};
+\node[below=0.15cm of sync, font=\tiny] {usa: Nota, Área};
+\node[below=0.15cm of plan, font=\tiny] {usa: Tarea};
+
+\end{tikzpicture}
+\end{center}
+
+\texttt{Agente} es abstracta y vive en \texttt{domain/}; cada subtipo sobreescribe \texttt{ejecutar()} en \texttt{use\_cases/} operando sobre una porción distinta del modelo de dominio.
+
+\section{Arquitectura de componentes}
+
+\begin{center}
+\begin{tikzpicture}[font=\scriptsize]
+
+\node[ifaceBox=3.1cm, minimum height=1.3cm] (hud) at (2.3,0) {\textbf{HUD Streamlit}\\ \tiny Web local :8501};
+\node[ifaceBox=3.1cm, minimum height=1.3cm] (cli) at (6.3,0) {\textbf{CLI}\\ \tiny Terminal / desarrollo};
+\node[ifaceBox=3.4cm, minimum height=1.3cm] (tg) at (10.6,0) {\textbf{Telegram + Voz}\\ \tiny Vía gateway de Hermes};
+
+\node[coreBox=6cm, minimum height=1.3cm] (gw) at (6.3,-2.7) {\textbf{API Gateway}\\ \tiny FastAPI :8000};
+
+\node[brainBox=6.2cm, minimum height=1.3cm] (hermes) at (4.7,-5.4) {\textbf{Hermes (orquestador)}\\ \tiny Memoria persistente};
+\node[coreBox=2.6cm, minimum height=1.3cm] (n8n) at (10.6,-5.4) {\textbf{n8n}\\ \tiny Cron y webhooks};
+
+\node[brainBox=2.8cm, minimum height=1.3cm] (curador) at (1.6,-8.1) {\textbf{AgenteCurador}\\ \tiny Curaduría (revisión)};
+\node[brainBox=2.8cm, minimum height=1.3cm] (estudio) at (4.9,-8.1) {\textbf{AgenteEstudio}\\ \tiny Repetición};
+\node[brainBox=2.8cm, minimum height=1.3cm] (sync) at (8.2,-8.1) {\textbf{AgenteSync}\\ \tiny Sincronización};
+\node[brainBox=2.8cm, minimum height=1.3cm] (plan) at (11.5,-8.1) {\textbf{AgentePlan}\\ \tiny Planificación};
+
+\node[dataBox=2.4cm, minimum height=1.3cm] (notion) at (1.4,-10.9) {\textbf{Notion}\\ \tiny API oficial};
+\node[dataBox=2.4cm, minimum height=1.3cm] (obsidian) at (4.2,-10.9) {\textbf{Obsidian}\\ \tiny Vault local};
+\node[dataBox=3.4cm, minimum height=1.3cm] (ollama) at (7.6,-10.9) {\textbf{Ollama/ChromaDB}\\ \tiny LLM y RAG local};
+\node[dataBox=3.4cm, minimum height=1.3cm] (integ) at (11.4,-10.9) {\textbf{Integraciones}\\ \tiny APIs de terceros};
+
+\draw[arr] (hud.south) -- (gw.north);
+\draw[arr] (cli.south) -- (gw.north);
+\draw[arr] (tg.south) -- (gw.north);
+\draw[arr] (gw.south) -- (hermes.north);
+\draw[bidir] (hermes.east) -- (n8n.west);
+
+\draw[arr] (hermes.south) -- (curador.north);
+\draw[arr] (hermes.south) -- (estudio.north);
+\draw[arr] (hermes.south) -- (sync.north);
+\draw[arr] (hermes.south) -- (plan.north);
+
+\draw[arr] (curador.south) -- (notion.north);
+\draw[arr] (curador.south) -- (obsidian.north);
+\draw[arr] (estudio.south) -- (ollama.north);
+\draw[arr] (sync.south) -- (notion.north);
+\draw[arr] (plan.south) -- (integ.north);
+
+\end{tikzpicture}
+\end{center}
+
+\texttt{Integraciones} agrupa Todoist, Google Calendar, Google Drive y Canvas LMS bajo un mismo tipo de adaptador (API REST externa). Gemini y NotebookLM se omiten deliberadamente de este diagrama: por RNF2 no forman parte del flujo automático del sistema.
+
+\section{Diagrama de secuencia --- crear y categorizar una nota}
+
+Escenario: Miguel dicta ``anota esto: terminé el laboratorio de Redes''.
+
+\begin{center}
+\begin{tikzpicture}[font=\scriptsize, yscale=0.62]
+
+\def\participants{{"Miguel",0},{"Interfaz",2.2},{"Gateway",4.4},{"Hermes",6.6},{"Curador",8.8},{"Notion",11.0},{"Obsidian",13.2}}
+
+\node[box=1.9cm, fill=graybg, draw=grayln] at (0,0) (p0) {Miguel};
+\node[box=1.9cm, fill=amberbg, draw=amberln] at (2.2,0) (p1) {Interfaz};
+\node[box=1.9cm, fill=tealbg, draw=tealln] at (4.4,0) (p2) {Gateway};
+\node[box=1.9cm, fill=bluebg, draw=blueln] at (6.6,0) (p3) {Hermes};
+\node[box=1.9cm, fill=bluebg, draw=blueln] at (8.8,0) (p4) {Curador};
+\node[box=1.9cm, fill=purplebg, draw=purpleln] at (11.0,0) (p5) {Notion};
+\node[box=1.9cm, fill=purplebg, draw=purpleln] at (13.2,0) (p6) {Obsidian};
+
+\foreach \x in {0,2.2,4.4,6.6,8.8,11.0,13.2}
+  \draw[dashed, thin, gray] (\x,-0.5) -- (\x,-17);
+
+\draw[arr] (0,-1.2) -- node[above]{\tiny Anota: lab de Redes} (2.2,-1.2);
+\draw[arr] (2.2,-2.2) -- node[above]{\tiny POST /chat} (4.4,-2.2);
+\draw[arr] (4.4,-3.2) -- node[above]{\tiny enruta} (6.6,-3.2);
+\draw[arr] (6.6,-4.2) -- node[above]{\tiny delega: crear nota} (8.8,-4.2);
+\draw[darr] (8.8,-5.2) -- node[above]{\tiny propone categoría (revisión)} (6.6,-5.2);
+\draw[darr] (6.6,-6.2) -- node[above]{\tiny pide confirmación} (2.2,-6.2);
+\draw[darr] (2.2,-7.2) -- node[above]{\tiny ¿Confirmas Área=Redes?} (0,-7.2);
+\draw[arr] (0,-8.2) -- node[above]{\tiny Sí} (2.2,-8.2);
+\draw[arr] (2.2,-9.2) -- node[above]{\tiny confirmación} (6.6,-9.2);
+\draw[arr] (6.6,-10.2) -- node[above]{\tiny aplica} (8.8,-10.2);
+\draw[arr] (8.8,-11.2) -- node[above]{\tiny crea página} (11.0,-11.2);
+\draw[arr] (8.8,-12.2) -- node[above]{\tiny escribe .md} (13.2,-12.2);
+\draw[darr] (8.8,-13.2) -- node[above]{\tiny éxito} (6.6,-13.2);
+\draw[darr] (6.6,-14.2) -- node[above]{\tiny nota guardada} (2.2,-14.2);
+\draw[darr] (2.2,-15.2) -- node[above]{\tiny confirmación final} (0,-15.2);
+
+\end{tikzpicture}
+\end{center}
+
+Líneas sólidas = peticiones; líneas punteadas = respuestas. El intercambio Miguel$\leftrightarrow$Interfaz$\leftrightarrow$Hermes (pasos 5--9) es el guardrail de autonomía progresiva (RF5.4): \texttt{AgenteCurador} nunca escribe sin que la propuesta pase por Hermes y vuelva a Miguel.
+
+\section{Flujos e integración de API}
+
+\subsection*{Segundo Cerebro}
+\begin{tabularx}{\textwidth}{@{}p{2cm}p{2.2cm}p{2.1cm}p{2.9cm}p{2.2cm}X@{}}
+\toprule
+Servicio & Tipo de acceso & Autenticación & Dirección & Quién lo usa & Disparador \\
+\midrule
+Notion & REST API oficial + Developer Platform & Token de integración & Bidireccional & AgenteCurador & Conversacional + sync periódica \\
+Obsidian & Sistema de archivos local & Ninguna (local) & Bidireccional & AgenteCurador, ChromaDB & Al confirmarse una nota \\
+ChromaDB & Vector store local & Ninguna (local) & Escritura/lectura & Hermes, AgenteEstudio & Al modificarse el vault \\
+\bottomrule
+\end{tabularx}
+
+\vspace{0.4cm}
+\subsection*{Study Board}
+\begin{tabularx}{\textwidth}{@{}p{2cm}p{2.2cm}p{2.1cm}p{2.9cm}p{2.2cm}X@{}}
+\toprule
+Servicio & Tipo de acceso & Autenticación & Dirección & Quién lo usa & Disparador \\
+\midrule
+Google Drive & REST API & OAuth2 & Lectura & AgenteEstudio & On-demand \\
+Canvas LMS & REST API & Token de acceso & Lectura & AgenteEstudio & Sync periódica \\
+Gemini & REST API / SDK & API key & Lectura puntual & AgenteEstudio & Solo bajo pedido explícito (RF2.5) \\
+\bottomrule
+\end{tabularx}
+
+\vspace{0.4cm}
+\subsection*{Tareas y tiempo}
+\begin{tabularx}{\textwidth}{@{}p{2cm}p{2.2cm}p{2.1cm}p{2.9cm}p{2.2cm}X@{}}
+\toprule
+Servicio & Tipo de acceso & Autenticación & Dirección & Quién lo usa & Disparador \\
+\midrule
+Todoist & REST API & Token API personal & Bidireccional & AgentePlan & Webhook $\to$ n8n $\to$ Hermes \\
+Google Calendar & REST API v3 & OAuth2 & Bidireccional & AgentePlan & Sync periódica \\
+\bottomrule
+\end{tabularx}
+
+\vspace{0.4cm}
+\subsection*{Orquestación interna}
+\begin{tabularx}{\textwidth}{@{}p{2cm}p{2.2cm}p{2.1cm}p{2.9cm}p{2.2cm}X@{}}
+\toprule
+Servicio & Tipo de acceso & Autenticación & Dirección & Quién lo usa & Disparador \\
+\midrule
+Hermes & API HTTP local (compatible OpenAI, sobre Ollama) & Ninguna (local) & Bidireccional & API Gateway, n8n & Cada mensaje/evento \\
+n8n & Webhooks + \texttt{/api/v1/sync} & Ninguna (red cerrada) & Bidireccional con Hermes & Todoist, Gateway & Cron / webhook externo \\
+Ollama & API HTTP local :11434 & Ninguna (local) & Consulta & Hermes, todos los agentes & Cada razonamiento (\texttt{keep\_alive}=30m) \\
+\bottomrule
+\end{tabularx}
+
+\textit{Fuera de esta tabla, a propósito: NotebookLM no tiene API pública, por lo que sigue siendo un paso manual (RF2.4).}
+
+\section{Wireframes}
+
+\subsection*{HUD principal}
+\begin{center}
+\begin{tikzpicture}[font=\tiny]
+\node[draw, rounded corners, minimum width=13cm, minimum height=7.2cm, align=left] (frame) {};
+\node[anchor=north west, xshift=0.3cm, yshift=-0.3cm] at (frame.north west) {\small Gwen OS \hspace{7.5cm} $\bullet$ Ollama activo};
+
+\node[draw, rounded corners, minimum width=8.6cm, minimum height=6.2cm, anchor=north west, xshift=0.3cm, yshift=-0.9cm] at (frame.north west) (chat) {};
+\node[anchor=north west, xshift=0.2cm, yshift=-0.2cm] at (chat.north west) {Chat con Hermes};
+\node[draw, rounded corners, fill=graybg, anchor=north east, xshift=-0.3cm, yshift=-0.8cm, text width=5.2cm, align=left] at (chat.north east) {``Anota esto: terminé el laboratorio de Redes''};
+\node[draw, rounded corners, fill=bluebg, anchor=west, xshift=0.2cm, yshift=-2.1cm, text width=6cm, align=left] at (chat.north west) {Propongo área \texttt{Redes}, tag \texttt{Laboratorio}. \\ {[Confirmar]\ [Ajustar]}};
+\node[draw, rounded corners, fill=graybg, anchor=north east, xshift=-0.3cm, yshift=-3.6cm, text width=1.5cm, align=left] at (chat.north east) {``Sí''};
+\node[anchor=west, xshift=0.2cm, yshift=-4.2cm] at (chat.north west) {$\checkmark$ Guardado en Notion y Obsidian};
+\node[draw, rounded corners, minimum width=7.6cm, minimum height=0.6cm, anchor=south west, xshift=0.2cm, yshift=0.2cm] at (chat.south west) {Escribe o dicta un mensaje \dotfill\ [Enviar]};
+
+\node[draw, rounded corners, minimum width=3.6cm, minimum height=1.8cm, anchor=north east, xshift=-0.3cm, yshift=-0.9cm] at (frame.north east) (agentes) {};
+\node[anchor=north west, xshift=0.15cm, yshift=-0.15cm] at (agentes.north west) {\parbox{3.3cm}{Agentes\\ $\bullet$ Curador (revisión)\\ $\bullet$ Estudio\\ $\bullet$ Sync\\ $\bullet$ Plan}};
+
+\node[draw, rounded corners, minimum width=3.6cm, minimum height=1.4cm, anchor=north east, xshift=-0.3cm, yshift=-2.9cm] at (frame.north east) (sistema) {};
+\node[anchor=north west, xshift=0.15cm, yshift=-0.15cm] at (sistema.north west) {\parbox{3.3cm}{Sistema\\ RAM 4.2 GB\\ CPU 18\%\\ LLM Llama 3.1}};
+
+\node[draw, rounded corners, minimum width=3.6cm, minimum height=1.2cm, anchor=north east, xshift=-0.3cm, yshift=-4.5cm] at (frame.north east) (repaso) {};
+\node[anchor=north west, xshift=0.15cm, yshift=-0.15cm] at (repaso.north west) {\parbox{3.3cm}{Próximo repaso\\ 3 tarjetas hoy\\ Study Board}};
+
+\end{tikzpicture}
+\end{center}
+
+\subsection*{Interfaz móvil (Telegram)}
+\begin{center}
+\begin{tikzpicture}[font=\tiny]
+\node[draw, rounded corners=6pt, minimum width=5.4cm, minimum height=5cm, fill=graybg!40, align=left] (phone) {};
+\node[anchor=north] at (phone.north) [yshift=-0.35cm] {Gwen $\cdot$ Telegram};
+\node[draw, rounded corners, fill=white, anchor=north east, xshift=-0.3cm, yshift=-0.9cm, text width=3.6cm, align=left] at (phone.north east) {``Anota: lab de Redes''};
+\node[draw, rounded corners, fill=bluebg, anchor=north west, xshift=0.3cm, yshift=-1.9cm, text width=4cm, align=left] at (phone.north west) {Propongo área \texttt{Redes}. ¿Confirmas?};
+\node[draw, rounded corners, fill=white, anchor=north east, xshift=-0.3cm, yshift=-3.1cm, text width=1.2cm, align=left] at (phone.north east) {``Sí''};
+\node[anchor=north west, xshift=0.3cm, yshift=-3.7cm] at (phone.north west) {$\checkmark$ Guardado};
+\node[draw, rounded corners, minimum width=4.8cm, minimum height=0.5cm, anchor=south, yshift=0.3cm] at (phone.south) {Mensaje\dotfill};
+\end{tikzpicture}
+\end{center}
+
+El guardrail de \texttt{AgenteCurador} (RF5.4) debe verse en pantalla como una propuesta con botones de confirmación, tanto en el HUD como en Telegram: si no aparece en la interfaz, el requerimiento no está realmente implementado.
+
+\section{Decisiones de arquitectura clave}
+
+\begin{longtable}{@{}p{3.2cm}p{10.3cm}@{}}
+\toprule
+Decisión & Justificación \\
+\midrule
+\endhead
+Hermes como orquestador único (no perfiles aislados por agente) & Centraliza la memoria persistente y el modelo de ``quién es Miguel'' en un solo lugar; evita que cada agente construya una versión distinta del usuario. Patrón supervisor/orquestador clásico en sistemas multiagente. \\
+n8n complementa a Hermes, no lo reemplaza & n8n maneja lo determinístico y programado (cron, webhooks); Hermes maneja lo que requiere criterio. Se comunican bidireccionalmente. \\
+Autonomía progresiva solo en \texttt{AgenteCurador} & Es el único agente que toca directamente el Segundo Cerebro sin posibilidad trivial de reversión; los demás agentes (Estudio, Sync, Plan) son autónomos desde el día uno por su menor radio de error. \\
+Gemini y NotebookLM excluidos del flujo automático & RNF2 exige LLM local por defecto; NotebookLM además carece de API pública de consumo, por lo que su uso permanece manual. \\
+Google Calendar en vez de Notion Calendar como motor de sincronización & Notion Calendar no ofrece sincronización bidireccional nativa y confiable con bases de datos de Notion; Google Calendar sí. \\
+Módulos de Finanzas y usuario secundario fuera de alcance & No formaban parte de la reconstrucción del proyecto desde cero; quedan como backlog condicionado a que RNF1 (escalabilidad) se cumpla en la práctica. \\
+\bottomrule
+\end{longtable}
+
+\section{Conclusiones y próximos pasos}
+
+Este documento cierra el ciclo completo de ingeniería de requerimientos para Gwen OS: nivel de negocio, nivel de usuario, nivel de software (funcional y no funcional), casos de uso, clases, arquitectura de componentes, secuencia, integración de API y wireframes --- todo trazable de punta a punta, cada wireframe apunta a un RF, cada RF a un RU, cada RU al objetivo de negocio.
+
+Próximos pasos sugeridos, fuera del alcance de este documento:
+\begin{enumerate}[leftmargin=1.2cm]
+  \item Implementación del perfil de Hermes para \texttt{AgenteCurador} en modo revisión (RF5.4).
+  \item Configuración de los workflows de n8n heredados (sincronización PKM y clasificador de inbox) apuntando al nuevo orquestador.
+  \item Migración de la página \texttt{Proyecto} en Notion para reflejar esta especificación como fuente de verdad vigente.
+  \item Plan de pruebas de aceptación por cada RF, derivado de las prioridades DINO ya asignadas.
+\end{enumerate}
+
+\end{document}
