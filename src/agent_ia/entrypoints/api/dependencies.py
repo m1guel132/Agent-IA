@@ -38,13 +38,12 @@ def get_hermes() -> Hermes:
     # --- Agents ---
     curador = AgenteCurador(
         llm=llm,
-        notion=notion,
         obsidian=obsidian,
         vector_store=vector_store,
     )
     estudio = AgenteEstudio()
     sync = AgenteSync()
-    plan = AgentePlan()
+    plan = AgentePlan(llm=llm, notion=notion)
 
     # --- Orchestrator ---
     hermes = Hermes(llm=llm)

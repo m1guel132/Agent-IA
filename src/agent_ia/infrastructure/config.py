@@ -24,7 +24,7 @@ class Settings(BaseSettings):
 
     # --- Notion ---
     notion_token: str = ""
-    notion_database_id: str = ""
+    notion_root_page_id: str = ""
 
     # --- Ollama ---
     ollama_base_url: str = "http://localhost:11434"

@@ -65,6 +65,7 @@ st.markdown(
     /* Burbujas de chat */
     .chat-user {
         background-color: #f1efe8;
+        color: #1a1a1a;
         padding: 0.7rem 1rem;
         border-radius: 12px 12px 4px 12px;
         margin: 0.5rem 0;
@@ -73,6 +74,7 @@ st.markdown(
     }
     .chat-assistant {
         background-color: #e6f1fb;
+        color: #1a1a1a;
         padding: 0.7rem 1rem;
         border-radius: 12px 12px 12px 4px;
         margin: 0.5rem 0;
@@ -80,8 +82,9 @@ st.markdown(
     }
     .chat-agent-tag {
         font-size: 0.7rem;
-        color: #666;
+        color: #555;
         margin-bottom: 0.3rem;
+        font-weight: bold;
     }
 
     /* Panel lateral */
@@ -230,6 +233,9 @@ with col_chat:
                     f'<div class="chat-assistant">{agent_tag}{msg["content"]}</div>',
                     unsafe_allow_html=True,
                 )
+                if "raw_json" in msg:
+                    with st.expander("Ver JSON de la respuesta"):
+                        st.json(msg["raw_json"])
 
     # Input de chat
     if prompt := st.chat_input("Escribe o dicta un mensaje..."):
@@ -246,6 +252,7 @@ with col_chat:
                 "role": "assistant",
                 "content": response.get("mensaje", "Sin respuesta"),
                 "agente": response.get("agente", "Hermes"),
+                "raw_json": response,
             }
         )
 

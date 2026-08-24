@@ -16,7 +16,6 @@ import uuid
 from agent_ia.domain.entities import Nota
 from agent_ia.domain.entities.nota import OrigenNota
 from agent_ia.domain.ports.llm_port import LLMPort
-from agent_ia.domain.ports.notion_port import NotionPort
 from agent_ia.domain.ports.obsidian_port import ObsidianPort
 from agent_ia.domain.ports.vector_store_port import VectorStorePort
 from agent_ia.use_cases.agente import Agente, EstadoResultado, Resultado
@@ -66,13 +65,11 @@ class AgenteCurador(Agente):
     def __init__(
         self,
         llm: LLMPort,
-        notion: NotionPort,
         obsidian: ObsidianPort,
         vector_store: VectorStorePort,
     ) -> None:
         super().__init__(nombre="AgenteCurador", dominio="Nota, Área")
         self._llm = llm
-        self._notion = notion
         self._obsidian = obsidian
         self._vector_store = vector_store
 
@@ -91,14 +88,15 @@ class AgenteCurador(Agente):
         if ctx.get("confirmar_propuesta"):
             return await self._aplicar_propuesta(ctx["confirmar_propuesta"])
 
-        # Detectar intención
-        if any(kw in instruccion_lower for kw in ["anota", "nota", "anotar", "apunta", "registra"]):
-            return await self._proponer_nota(instruccion, ctx)
-        elif any(kw in instruccion_lower for kw in ["organiza", "organizar", "limpiar", "inbox"]):
+        import re
+        
+        # Detectar intención priorizando comandos explícitos con regex (para evitar falsos positivos de "nota")
+        if re.search(r'\b(organiza|organizar|limpiar|inbox)\b', instruccion_lower):
             return await self._organizar_inbox()
-        elif any(kw in instruccion_lower for kw in ["busca", "buscar", "encuentra"]):
+        elif re.search(r'\b(busca|buscar|encuentra)\b', instruccion_lower):
             return await self._buscar_en_conocimiento(instruccion)
         else:
+            # Por defecto, si no es organizar ni buscar, es una nota nueva
             return await self._proponer_nota(instruccion, ctx)
 
     async def _proponer_nota(self, instruccion: str, contexto: dict) -> Resultado:
@@ -192,14 +190,10 @@ class AgenteCurador(Agente):
         nota: Nota = propuesta["nota"]
 
         try:
-            # 1. Crear en Notion
-            page_id = await self._notion.crear_pagina(nota)
-            nota.notion_page_id = page_id
-
-            # 2. Escribir en Obsidian
+            # 1. Escribir en Obsidian (Memoria Física)
             filepath = await self._obsidian.escribir_nota(nota)
 
-            # 3. Indexar en ChromaDB
+            # 2. Indexar en ChromaDB (Índice Cognitivo)
             await self._vector_store.indexar(
                 doc_id=nota.id,
                 content=f"{nota.titulo}\n{nota.contenido}",
@@ -207,7 +201,6 @@ class AgenteCurador(Agente):
                     "area": nota.area_id or "inbox",
                     "tags": ",".join(nota.tags),
                     "origen": nota.origen,
-                    "notion_id": nota.notion_page_id or "",
                     "obsidian_path": nota.obsidian_path or "",
                 },
             )
@@ -215,14 +208,12 @@ class AgenteCurador(Agente):
             return Resultado(
                 estado=EstadoResultado.EXITO,
                 mensaje=(
-                    f"✅ **Nota guardada exitosamente**\n\n"
-                    f"• Notion: página creada\n"
+                    f"✅ **Conocimiento guardado en la memoria del sistema**\n\n"
                     f"• Obsidian: `{nota.obsidian_path}`\n"
                     f"• ChromaDB: indexada para búsqueda semántica"
                 ),
                 datos={
                     "nota_id": nota.id,
-                    "notion_page_id": page_id,
                     "obsidian_path": str(filepath),
                 },
                 agente=self.nombre,

@@ -26,7 +26,11 @@ Luego, configura las variables de entorno. Renombra `.env.example` a `.env` e in
 # .env
 AGENT_NOTION_TOKEN=tu_token_aqui
 AGENT_NOTION_DATABASE_ID=id_de_tu_db
-AGENT_OBSIDIAN_VAULT_PATH=C:\Users\migue\Agent_IA_Vaut
+AGENT_OLLAMA_BASE_URL=http://localhost:11434
+AGENT_OLLAMA_MODEL=llama3.1:8b
+AGENT_OLLAMA_EMBED_MODEL=nomic-embed-text
+AGENT_OBSIDIAN_VAULT_PATH=C:\Users\migue\Agent_IA_Vault
+AGENT_N8N_BASE_URL=http://localhost:5678
 ```
 
 ### 2. Levantar el Sistema
@@ -49,7 +53,7 @@ uv run agent-hud
 
 ---
 
-## 🛠️ Cómo Usar a Agent IA (Manual de Usuario)
+## 🛠️ Cómo usar Agent IA (Manual de Usuario)
 
 Agent IA interactúa principalmente a través de lenguaje natural en el **Chat con Hermes** desde el HUD.
 
@@ -61,7 +65,7 @@ Puedes pedirle a Agent IA que anote ideas, cree recordatorios de conocimiento o 
 
 El **Agente Curador** interceptará este mensaje, usará el LLM para detectar el área (ej. `Redes`) y te mostrará una propuesta antes de guardar:
 
-> **Agent IA:** *"📋 Propuesta de nota (ID: a3b9f1)\nÁrea sugerida: Redes\nTags: laboratorio, firewall\n¿Confirmas esta categorización?"*
+> **Hermes:** *"📋 Propuesta de nota (ID: a3b9f1)\nÁrea sugerida: Redes\nTags: laboratorio, firewall\n¿Confirmas esta categorización?"*
 
 Si hay notas similares, Agent IA usará **ChromaDB** para buscar coincidencias e informarte si estás creando un posible duplicado.
 
