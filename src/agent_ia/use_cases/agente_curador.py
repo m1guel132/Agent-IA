@@ -16,6 +16,7 @@ import uuid
 from agent_ia.domain.entities import Nota
 from agent_ia.domain.entities.nota import OrigenNota
 from agent_ia.domain.ports.llm_port import LLMPort
+from agent_ia.domain.ports.notion_port import NotionPort
 from agent_ia.domain.ports.obsidian_port import ObsidianPort
 from agent_ia.domain.ports.vector_store_port import VectorStorePort
 from agent_ia.use_cases.agente import Agente, EstadoResultado, Resultado
@@ -67,11 +68,13 @@ class AgenteCurador(Agente):
         llm: LLMPort,
         obsidian: ObsidianPort,
         vector_store: VectorStorePort,
+        notion: NotionPort,
     ) -> None:
         super().__init__(nombre="AgenteCurador", dominio="Nota, Área")
         self._llm = llm
         self._obsidian = obsidian
         self._vector_store = vector_store
+        self._notion = notion
 
         # Almacén temporal de propuestas pendientes de confirmación
         self._propuestas_pendientes: dict[str, dict] = {}
@@ -193,7 +196,11 @@ class AgenteCurador(Agente):
             # 1. Escribir en Obsidian (Memoria Física)
             filepath = await self._obsidian.escribir_nota(nota)
 
-            # 2. Indexar en ChromaDB (Índice Cognitivo)
+            # 2. Escribir en Notion (Segundo Cerebro / Cloud)
+            page_id = await self._notion.crear_pagina(nota)
+            nota.notion_page_id = page_id
+
+            # 3. Indexar en ChromaDB (Índice Cognitivo)
             await self._vector_store.indexar(
                 doc_id=nota.id,
                 content=f"{nota.titulo}\n{nota.contenido}",
@@ -202,6 +209,7 @@ class AgenteCurador(Agente):
                     "tags": ",".join(nota.tags),
                     "origen": nota.origen,
                     "obsidian_path": nota.obsidian_path or "",
+                    "notion_page_id": nota.notion_page_id or "",
                 },
             )
 
@@ -210,11 +218,13 @@ class AgenteCurador(Agente):
                 mensaje=(
                     f"✅ **Conocimiento guardado en la memoria del sistema**\n\n"
                     f"• Obsidian: `{nota.obsidian_path}`\n"
+                    f"• Notion: `{nota.notion_page_id}`\n"
                     f"• ChromaDB: indexada para búsqueda semántica"
                 ),
                 datos={
                     "nota_id": nota.id,
                     "obsidian_path": str(filepath),
+                    "notion_page_id": nota.notion_page_id,
                 },
                 agente=self.nombre,
             )

@@ -40,6 +40,7 @@ def get_hermes() -> Hermes:
         llm=llm,
         obsidian=obsidian,
         vector_store=vector_store,
+        notion=notion,
     )
     estudio = AgenteEstudio()
     sync = AgenteSync()
