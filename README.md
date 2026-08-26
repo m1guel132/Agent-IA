@@ -1,113 +1,211 @@
-# Agent IA 🧠
+# Agent IA 🧠 — Copiloto de Conocimiento y Segundo Cerebro
 
-Agent IA es un copiloto personal de gestión de conocimiento y estudio, construido con una arquitectura hexagonal. El sistema orquesta agentes especializados mediante LLMs locales para automatizar el mantenimiento del Segundo Cerebro (Notion + Obsidian).
+Agent IA es un sistema multi-agente personal para la gestión automatizada de conocimiento, estudio y planificación estratégica. Construido bajo una **Arquitectura Hexagonal (Ports & Adapters)** y potenciado por LLMs locales y vector search (ChromaDB), mantiene sincronizados y enriquecidos tu **Segundo Cerebro en Notion** y tu **Vault en Obsidian**.
 
-## 🚀 Inicio Rápido
+---
+
+## ✨ Características Principales
+
+* 🌐 **Interfaz Web AI-Native Moderna** (`http://localhost:8000`):
+  * Diseño Dark Glassmorphism Obsidian Slate (`#090D15`).
+  * Indicadores en vivo del estado de la flota de agentes.
+  * Tarjetas de acción interactivas con botones **`[ Confirmar ]`** / **`[ Cancelar ]`** para propuestas que requieren aprobación.
+  * Píldoras de sugerencia (*Prompt Pills*) para interacción rápida.
+  * Atajos de teclado: `Ctrl + K` (foco al prompt), `Ctrl + B` (colapsar barra lateral), `Enter` (enviar), `Shift + Enter` (salto de línea).
+* 🤖 **Flota de Agentes Especializados**:
+  * **Hermes (Orquestador Central)**: Clasifica intenciones mediante LLM rápido, gestiona la máquina de estados de confirmación y enruta tareas hacia los agentes especializados.
+  * **AgenteCurador**: Extrae taxonomía (áreas, temas, tags), detecta notas similares o duplicados mediante búsqueda semántica vectorial, y persiste notas simultáneamente en Notion y Obsidian Markdown.
+  * **AgentePlan**: Desglosa metas en planes estratégicos estructurados (Objetivos, Proyectos y Tareas relacionales).
+  * **AgenteEstudio**: Motor de repaso espaciado con algoritmo SuperMemo SM-2 y generación de flashcards.
+  * **AgenteSync**: Motor de consistencia y sincronización bidireccional entre plataformas.
+* ⚡ **Mapeo Dinámico de Notion de Ultra-Baja Latencia**:
+  * Descubrimiento recursivo de las 29 bases de datos relacionales del usuario.
+  * Caché persistente en disco (`data/notion_db_map.json`) con resolución en **<1 ms**.
+  * Soporte nativo para `data_sources.query` y endpoints actualizados de Notion.
+* 🔍 **Memoria Semántica Vectorial**:
+  * Integración con **ChromaDB** y modelos de embeddings locales (`nomic-embed-text`).
+
+---
+
+## 🏛️ Arquitectura del Sistema
+
+```
+                         ┌─────────────────────────────────────────┐
+                         │       Frontend AI-Native / HUD          │
+                         │  (Web :8000 | Streamlit :8501)          │
+                         └──────────────────┬──────────────────────┘
+                                            │ HTTP / JSON
+                                            ▼
+┌───────────────────────────────────────────────────────────────────────────────────┐
+│                           API Gateway (FastAPI :8000)                             │
+├───────────────────────────────────────────────────────────────────────────────────┤
+│                                Hermes (Orquestador)                               │
+│                   ├── Clasificador Semántico (Dual-Model)                         │
+│                   └── Máquina de Confirmaciones Pendientes                        │
+├─────────────────┬───────────────────┬───────────────────┬─────────────────────────┤
+│  AgenteCurador  │    AgentePlan     │   AgenteEstudio   │       AgenteSync        │
+│ (Notas & Tags)  │ (Metas & Tareas)  │    (SM-2 SRS)     │  (Notion <-> Obsidian)  │
+├─────────────────┴───────────────────┴───────────────────┴─────────────────────────┤
+│                               Puertos (Interfaces)                                │
+│   ├── LLMPort           ├── NotionPort             ├── VectorStorePort            │
+│   └── ObsidianPort      └── StudyPort              └── NotificationPort           │
+├───────────────────────────────────────────────────────────────────────────────────┤
+│                             Adaptadores (Infraestructura)                         │
+│   ├── OllamaAdapter (Llama 3.1 / Qwen / Llama 3.2)                                │
+│   ├── NotionAdapter (29 Relational DBs + Disk Cache)                              │
+│   ├── ObsidianAdapter (Local File System Vault)                                   │
+│   └── ChromaVectorAdapter (Local Persistent Embeddings)                           │
+└───────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🚀 Inicio Rápido (Windows / Linux)
 
 ### Prerrequisitos
-- **Python 3.14+** (instalado vía Microsoft Store o py launcher)
-- **uv** (Gestor de dependencias ultrarrápido)
-- **Ollama** con el modelo `llama3.1:8b` y `nomic-embed-text`
-- **Docker** (Opcional, para infraestructura externa)
-- **n8n** (Instalado de forma nativa)
+1. **Python 3.14+**
+2. **uv** (Gestor de paquetes ultrarrápido):
+   ```bash
+   # Windows (PowerShell):
+   powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+   # Linux:
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
+3. **Ollama**:
+   ```bash
+   ollama pull llama3.1:8b
+   ollama pull nomic-embed-text
+   # Opcional (recomendado para máxima velocidad en CPU):
+   ollama pull llama3.2:3b
+   ```
 
-### 1. Instalación y Configuración
-
-Clona el proyecto o ubícate en la carpeta del repositorio y ejecuta:
-
+### 1. Instalación y Dependencias
 ```bash
-# Sincroniza e instala las dependencias usando uv
+git clone https://github.com/m1guel132/Agent-IA.git
+cd "Agent IA"
 uv sync
 ```
 
-Luego, configura las variables de entorno. Renombra `.env.example` a `.env` e ingresa tus credenciales:
-
+### 2. Variables de Entorno (`.env`)
+Copia `.env.example` a `.env` y configura tus claves:
 ```properties
-# .env
-AGENT_NOTION_TOKEN=tu_token_aqui
-AGENT_NOTION_DATABASE_ID=id_de_tu_db
+AGENT_NOTION_TOKEN=ntn_xxxxxxxxxxxxxxxxxxxx
+AGENT_NOTION_ROOT_PAGE_ID=tu_root_page_id
 AGENT_OLLAMA_BASE_URL=http://localhost:11434
 AGENT_OLLAMA_MODEL=llama3.1:8b
+AGENT_OLLAMA_MODEL_RAPIDO=qwen3.5:4b
 AGENT_OLLAMA_EMBED_MODEL=nomic-embed-text
-AGENT_OBSIDIAN_VAULT_PATH=C:\Users\migue\Agent_IA_Vault
-AGENT_N8N_BASE_URL=http://localhost:5678
+AGENT_OBSIDIAN_VAULT_PATH=C:\Users\tu_usuario\Obsidian_Vault
+AGENT_CHROMA_PERSIST_DIR=./data/chroma
+AGENT_API_HOST=0.0.0.0
+AGENT_API_PORT=8000
+AGENT_HUD_PORT=8501
 ```
 
-### 2. Levantar el Sistema
+### 3. Ejecución
 
-El sistema consta de dos procesos principales: **La API Gateway** (el cerebro) y **El HUD** (la interfaz visual).
-
-Abre dos terminales diferentes en la carpeta del proyecto.
-
-**Terminal 1 (Levantar la API):**
 ```bash
+# Terminal 1 — Iniciar el API Gateway y Frontend Web AI-Native
 uv run agent-api
-```
-*(Esto levantará la API de FastAPI en el puerto 8000)*
 
-**Terminal 2 (Levantar el HUD):**
-```bash
+# Terminal 2 (Opcional) — Iniciar el HUD secundario de Streamlit
 uv run agent-hud
 ```
-*(Esto abrirá automáticamente tu navegador en `http://localhost:8501`)*
+
+* **Frontend Web AI-Native**: [http://localhost:8000/](http://localhost:8000/)
+* **Documentación OpenAPI / Swagger**: [http://localhost:8000/docs](http://localhost:8000/docs)
+* **HUD Streamlit**: [http://localhost:8501/](http://localhost:8501/)
 
 ---
 
-## 🛠️ Cómo usar Agent IA (Manual de Usuario)
+## 🐧 Guía de Migración y Despliegue en Arch Linux
 
-Agent IA interactúa principalmente a través de lenguaje natural en el **Chat con Hermes** desde el HUD.
+Migrar Agent IA a **Arch Linux** permite reducir drásticamente el consumo de RAM base (~500 MB frente a 5+ GB en Windows), eliminar la latencia de virtualización y aprovechar el soporte nativo de `epoll`/`uvloop` y aceleración de CPU/GPU en Linux.
 
-### Ejemplos de uso (Fase 1 - Agente Curador)
+### Paso 1: Instalar dependencias base en Arch Linux
+```bash
+sudo pacman -Syu git base-devel python python-pip curl
+```
 
-Puedes pedirle a Agent IA que anote ideas, cree recordatorios de conocimiento o categorice apuntes. Hermes (el orquestador) entenderá la intención y llamará al **Agente Curador**.
+### Paso 2: Instalar `uv` y `ollama`
+```bash
+# Instalar uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source ~/.bashrc
 
-> **Miguel:** *"Anota esto: terminé de configurar el firewall del laboratorio de Redes."*
+# Instalar Ollama
+curl -fsSL https://ollama.com/install.sh | sh
 
-El **Agente Curador** interceptará este mensaje, usará el LLM para detectar el área (ej. `Redes`) y te mostrará una propuesta antes de guardar:
+# Habilitar e iniciar el servicio de Ollama en systemd
+sudo systemctl enable --now ollama
+```
 
-> **Hermes:** *"📋 Propuesta de nota (ID: a3b9f1)\nÁrea sugerida: Redes\nTags: laboratorio, firewall\n¿Confirmas esta categorización?"*
+### Paso 3: Descargar los modelos en Ollama
+```bash
+ollama pull llama3.1:8b
+ollama pull nomic-embed-text
+ollama pull llama3.2:3b
+```
 
-Si hay notas similares, Agent IA usará **ChromaDB** para buscar coincidencias e informarte si estás creando un posible duplicado.
+### Paso 4: Clonar y configurar Agent IA
+```bash
+git clone https://github.com/m1guel132/Agent-IA.git ~/Agent-IA
+cd ~/Agent-IA
 
-**Para confirmar**, simplemente responde:
-> **Miguel:** *"Sí, confirmo"* o *"ok"*
+# Instalar dependencias y crear entorno virtual aislado
+uv sync
 
-Al confirmar, la nota se guardará automáticamente de forma bidireccional en:
-1. **Notion:** En tu base de datos central.
-2. **Obsidian:** Como un archivo `.md` en tu vault de Obsidian.
+# Crear .env con tus rutas de Linux
+cp .env.example .env
+nano .env
+```
+> **Nota de rutas en Linux**: Ajusta `AGENT_OBSIDIAN_VAULT_PATH=/home/tu_usuario/ObsidianVault`.
 
-### Organizar el Inbox
-Si tienes notas acumuladas en la carpeta `inbox/` de tu Obsidian, puedes pedirle a Agent IA:
-> **Miguel:** *"Por favor organiza mi inbox"*
+### Paso 5: Sincronizar el mapa de Notion y verificar tests
+```bash
+# Sincronizar bases de datos de Notion
+uv run python scripts/sync_notion_map.py
 
-Agent IA escaneará la carpeta y te propondrá qué hacer con los archivos que aún no tienen área asignada.
+# Correr toda la suite de pruebas
+uv run pytest
+```
+
+### Paso 6: Ejecutar en segundo plano con `systemd` (User Services) o `tmux`
+Puedes crear un servicio de usuario en `~/.config/systemd/user/agent-ia.service`:
+```ini
+[Unit]
+Description=Agent IA API Gateway & Web Service
+After=network.target ollama.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Agent-IA
+ExecStart=%h/.cargo/bin/uv run agent-api
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+```
+Habilítalo con:
+```bash
+systemctl --user enable --now agent-ia
+```
 
 ---
 
-## 🏗️ Arquitectura y Flujos n8n
+## 🧪 Pruebas Automatizadas
 
-Agent IA no solo es reactivo, también es proactivo gracias a **n8n**. 
-
-En la carpeta `n8n/` del proyecto encontrarás dos flujos en formato JSON:
-- `sync_periodica.json`
-- `clasificador_inbox.json`
-
-**Para importarlos:**
-1. Abre tu interfaz local de n8n (`http://localhost:5678`).
-2. Ve a *Workflows* -> *Import from File*.
-3. Selecciona los archivos de la carpeta `n8n/`.
-4. Actívalos.
-
-Estos flujos harán peticiones HTTP directamente a `http://localhost:8000/chat` para despertar a Agent IA automáticamente de fondo (por ejemplo, cada 4 horas para revisar el inbox).
-
----
-
-## 🧪 Desarrollo y Tests
-
-Si quieres contribuir o verificar que todo esté funcionando a nivel interno, puedes correr los tests unitarios ejecutando:
+El proyecto cuenta con una suite de pruebas unitarias y de integración que validan el dominio, enrutamiento, API y Notion:
 
 ```bash
 uv run pytest
 ```
 
-*(Esto verificará toda la lógica de dominio, el modelo matemático SM-2 y el enrutamiento de los agentes).*
+Todos los tests se ejecutan en memoria y con mocks aislados para garantizar reproducibilidad sin dependencias externas.
+
+---
+
+## 🛠️ Herramientas y Scripts Útiles
+
+* `scripts/sync_notion_map.py`: Escanea la estructura de Notion y genera la caché persistente en `data/notion_db_map.json`.
+* `scripts/benchmark_models.py`: Mide latencia, tokens por segundo y validez de formato JSON de tus modelos locales de Ollama.

@@ -45,6 +45,21 @@ Responde SIEMPRE en JSON con esta estructura exacta:
 }
 """
 
+SYSTEM_PROMPT_CONFIRMACION = """Eres Hermes, el orquestador central de Agent IA.
+Tu tarea es clasificar la respuesta del usuario ante una propuesta o acción pendiente que requiere confirmación.
+
+Determina cuál es la intención del usuario:
+1. "confirmar": El usuario acepta, aprueba o confirma la propuesta pendiente (ej. "sí", "si", "dale", "va", "ok", "confirmo", "adelante", "perfecto", "me parece bien", "hazlo", "yes", "correcto").
+2. "rechazar": El usuario rechaza, descarta o cancela la propuesta pendiente (ej. "no", "cancelar", "cancela", "olvídalo", "descarta", "nope", "no quiero").
+3. "otro": El usuario no está respondiendo a la propuesta, sino haciendo una nueva pregunta, dando otra instrucción no relacionada, pidiendo organizar algo, o hablando de otro tema (ej. "¿qué es TCP?", "busca notas de redes", "organiza el inbox", "crea una tarea").
+
+Responde SIEMPRE en JSON con esta estructura exacta:
+{
+    "intencion": "confirmar|rechazar|otro",
+    "razon": "breve justificación"
+}
+"""
+
 
 @dataclass
 class MensajeChat:
@@ -82,16 +97,22 @@ class Hermes:
         # Guardar mensaje del usuario en el historial
         self._historial.append(MensajeChat(role="user", content=mensaje))
 
-        # Si hay una propuesta activa y el usuario confirma
+        # Si hay una propuesta activa y el usuario responde
         if self._propuesta_activa:
             return await self._manejar_confirmacion(mensaje)
 
-        # Detectar intención con el LLM
+        return await self._procesar_instruccion(mensaje, guardar_en_historial=True)
+
+    async def _procesar_instruccion(self, mensaje: str, *, guardar_en_historial: bool = True) -> Resultado:
+        """Detecta la intención y ejecuta la instrucción delegando o respondiendo directamente."""
         try:
             routing = await self._detectar_intencion(mensaje)
         except Exception as e:
             logger.exception("Error al detectar intención")
-            return self._respuesta_error(f"Error al procesar tu mensaje: {e}")
+            resultado = self._respuesta_error(f"Error al procesar tu mensaje: {e}")
+            if guardar_en_historial:
+                self._guardar_respuesta(resultado)
+            return resultado
 
         agente_clave = routing.get("agente", "hermes")
         instruccion = routing.get("instruccion_para_agente", mensaje)
@@ -103,11 +124,12 @@ class Hermes:
                 mensaje=instruccion,
                 agente="Hermes",
             )
-            self._guardar_respuesta(resultado)
+            if guardar_en_historial:
+                self._guardar_respuesta(resultado)
             return resultado
 
         # Delegar al agente correspondiente
-        return await self._delegar(agente_clave, instruccion)
+        return await self._delegar(agente_clave, instruccion, guardar_en_historial=guardar_en_historial)
 
     async def _detectar_intencion(self, mensaje: str) -> dict:
         """Usa el LLM para determinar qué agente debe actuar."""
@@ -137,16 +159,21 @@ class Hermes:
                 "razon": "Respuesta directa (JSON no válido)",
             }
 
-    async def _delegar(self, agente_clave: str, instruccion: str) -> Resultado:
+    async def _delegar(
+        self, agente_clave: str, instruccion: str, *, guardar_en_historial: bool = True
+    ) -> Resultado:
         """Delega la instrucción al agente correspondiente (RF5.2: fallas aisladas)."""
         agente = self._agentes.get(agente_clave)
 
         if agente is None:
-            return Resultado(
+            resultado = Resultado(
                 estado=EstadoResultado.ERROR,
                 mensaje=f"⚠️ No tengo un agente registrado para '{agente_clave}'.",
                 agente="Hermes",
             )
+            if guardar_en_historial:
+                self._guardar_respuesta(resultado)
+            return resultado
 
         try:
             resultado = await agente.ejecutar(instruccion)
@@ -162,26 +189,64 @@ class Hermes:
 
         # Si el agente requiere confirmación, guardar la propuesta
         if resultado.estado == EstadoResultado.REQUIERE_CONFIRMACION:
+            nuevo_propuesta_id = resultado.datos.get("propuesta_id")
+            # Guardia: si ya existía otra propuesta activa distinta, advertir reemplazo
+            if self._propuesta_activa and self._propuesta_activa.get("propuesta_id") != nuevo_propuesta_id:
+                propuesta_ant = self._propuesta_activa
+                nota_ant = (
+                    propuesta_ant["resultado"].datos.get("nota", {})
+                    if propuesta_ant.get("resultado") and propuesta_ant["resultado"].datos
+                    else {}
+                )
+                titulo_ant = (
+                    nota_ant.get("titulo")
+                    or (propuesta_ant["resultado"].accion_pendiente if propuesta_ant.get("resultado") else None)
+                    or "anterior"
+                )
+                resultado.mensaje += (
+                    f"\n\n⚠️ *Aviso:* La propuesta anterior sobre '**{titulo_ant}**' "
+                    "fue reemplazada como foco activo de confirmación."
+                )
+
             self._propuesta_activa = {
                 "agente_clave": agente_clave,
-                "propuesta_id": resultado.datos.get("propuesta_id"),
+                "propuesta_id": nuevo_propuesta_id,
                 "resultado": resultado,
             }
 
-        self._guardar_respuesta(resultado)
+        if guardar_en_historial:
+            self._guardar_respuesta(resultado)
         return resultado
 
     async def _manejar_confirmacion(self, mensaje: str) -> Resultado:
-        """Maneja la respuesta del usuario a una propuesta pendiente."""
+        """Maneja la respuesta del usuario a una propuesta pendiente usando clasificación LLM."""
         propuesta = self._propuesta_activa
         assert propuesta is not None
 
-        mensaje_lower = mensaje.lower().strip()
-        afirmaciones = {"sí", "si", "confirmar", "confirmo", "ok", "dale", "yes", "correcto"}
-        negaciones = {"no", "cancelar", "cancela", "ajustar", "cambiar", "nope"}
+        # Clasificar la intención del usuario con el LLM rápido
+        prompt_clasif = (
+            f"Propuesta pendiente: {propuesta['resultado'].accion_pendiente or 'Acción pendiente'}\n"
+            f"Respuesta del usuario: \"{mensaje}\""
+        )
+        try:
+            resp_clasif = await self._llm.generate(
+                prompt=prompt_clasif,
+                system=SYSTEM_PROMPT_CONFIRMACION,
+                temperature=0.0,
+            )
+            data_clasif = json.loads(resp_clasif.content)
+            intencion = data_clasif.get("intencion", "otro").lower().strip()
+        except Exception:
+            logger.warning("Fallo al clasificar confirmación con LLM, usando fallback por palabras clave")
+            mensaje_clean = mensaje.lower().strip()
+            if mensaje_clean in {"sí", "si", "confirmar", "confirmo", "ok", "dale", "yes", "correcto", "va", "adelante"}:
+                intencion = "confirmar"
+            elif mensaje_clean in {"no", "cancelar", "cancela", "nope", "rechazar"}:
+                intencion = "rechazar"
+            else:
+                intencion = "otro"
 
-        if mensaje_lower in afirmaciones:
-            # Confirmar la propuesta
+        if intencion == "confirmar":
             agente = self._agentes.get(propuesta["agente_clave"])
             self._propuesta_activa = None
 
@@ -196,26 +261,44 @@ class Hermes:
             self._guardar_respuesta(resultado)
             return resultado
 
-        elif mensaje_lower in negaciones:
+        elif intencion == "rechazar":
             self._propuesta_activa = None
             resultado = Resultado(
                 estado=EstadoResultado.SIN_ACCION,
-                mensaje="❌ Propuesta cancelada. ¿Qué te gustaría ajustar?",
+                mensaje="❌ Propuesta cancelada. ¿Qué te gustaría hacer ahora?",
                 agente="Hermes",
             )
             self._guardar_respuesta(resultado)
             return resultado
 
-        else:
-            # No se entendió la respuesta
-            resultado = Resultado(
-                estado=EstadoResultado.REQUIERE_CONFIRMACION,
-                mensaje="🤔 No entendí tu respuesta. ¿Confirmas la propuesta? (Sí/No)",
-                datos=propuesta["resultado"].datos,
-                agente="Hermes",
-            )
-            self._guardar_respuesta(resultado)
-            return resultado
+        else:  # intencion == "otro"
+            # Procesar el mensaje como una instrucción nueva normal
+            propuesta_id_previa = propuesta["propuesta_id"]
+            resultado_nuevo = await self._procesar_instruccion(mensaje, guardar_en_historial=False)
+
+            # Si la nueva instrucción no generó una nueva propuesta, añadir recordatorio de la propuesta pendiente
+            if (
+                self._propuesta_activa
+                and self._propuesta_activa.get("propuesta_id") == propuesta_id_previa
+            ):
+                nota_info = (
+                    propuesta["resultado"].datos.get("nota", {})
+                    if propuesta.get("resultado") and propuesta["resultado"].datos
+                    else {}
+                )
+                titulo_propuesta = (
+                    nota_info.get("titulo")
+                    or propuesta["resultado"].accion_pendiente
+                    or "propuesta pendiente"
+                )
+                recordatorio = (
+                    f"\n\n📌 *Nota:* Tienes una propuesta pendiente: "
+                    f"**{titulo_propuesta}**. Responde *'sí'* para confirmarla o *'no'* para cancelarla."
+                )
+                resultado_nuevo.mensaje = f"{resultado_nuevo.mensaje}{recordatorio}"
+
+            self._guardar_respuesta(resultado_nuevo)
+            return resultado_nuevo
 
     def _guardar_respuesta(self, resultado: Resultado) -> None:
         """Guarda la respuesta en el historial."""

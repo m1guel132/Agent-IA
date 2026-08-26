@@ -31,6 +31,7 @@ def get_hermes() -> Hermes:
 
     # --- Infrastructure adapters ---
     llm = OllamaAdapter(settings)
+    llm_rapido = OllamaAdapter(settings, model_override=settings.ollama_model_rapido)
     vector_store = ChromaAdapter(settings, llm)
     obsidian = ObsidianAdapter(settings)
     notion = NotionAdapter(settings)
@@ -47,7 +48,7 @@ def get_hermes() -> Hermes:
     plan = AgentePlan(llm=llm, notion=notion)
 
     # --- Orchestrator ---
-    hermes = Hermes(llm=llm)
+    hermes = Hermes(llm=llm_rapido)
     hermes.registrar_agente("curador", curador)
     hermes.registrar_agente("estudio", estudio)
     hermes.registrar_agente("sync", sync)

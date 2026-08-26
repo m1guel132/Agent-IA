@@ -12,3 +12,8 @@ wheels/
 # Environment variables
 .env
 .env.*
+
+# Local data & vector store
+data/chroma/
+data/notion_db_map.json
+*.log

@@ -9,9 +9,14 @@ from __future__ import annotations
 
 import logging
 
+import os
+from pathlib import Path
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from agent_ia.entrypoints.api.routes.chat import router as chat_router
 from agent_ia.infrastructure.config import get_settings
@@ -22,6 +27,8 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 
+WEB_DIR = Path(__file__).parent.parent / "web"
+
 app = FastAPI(
     title="Agent IA — API Gateway",
     description=(
@@ -31,7 +38,7 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# CORS para el HUD (Streamlit en otro puerto)
+# CORS para el HUD o frontend externo
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -40,19 +47,35 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Montar estáticos si existe la carpeta web
+if WEB_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
+
 # Rutas
 app.include_router(chat_router)
 
 
-@app.get("/", tags=["system"])
+@app.get("/", tags=["ui"])
 async def root():
-    """Endpoint raíz — verificación rápida de que el API está activo."""
+    """Sirve la interfaz web moderna si está disponible, o el estado del API."""
+    index_path = WEB_DIR / "index.html"
+    if index_path.exists():
+        return FileResponse(str(index_path))
     return {
         "sistema": "Agent IA",
         "version": "0.1.0",
         "estado": "activo",
         "mensaje": "API Gateway operativo. Usa POST /chat/ para conversar con Hermes.",
     }
+
+
+@app.get("/app", tags=["ui"])
+async def web_app():
+    """Acceso directo a la interfaz web moderna."""
+    index_path = WEB_DIR / "index.html"
+    if index_path.exists():
+        return FileResponse(str(index_path))
+    return {"error": "Interfaz web no encontrada"}
 
 
 @app.get("/health", tags=["system"])

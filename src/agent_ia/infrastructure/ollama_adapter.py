@@ -19,10 +19,14 @@ logger = logging.getLogger(__name__)
 class OllamaAdapter(LLMPort):
     """Adaptador concreto de Ollama para generación y embeddings."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        model_override: str | None = None,
+    ) -> None:
         self._settings = settings
         self._client = AsyncClient(host=settings.ollama_base_url)
-        self._model = settings.ollama_model
+        self._model = model_override or settings.ollama_model
         self._embed_model = settings.ollama_embed_model
         self._keep_alive = settings.ollama_keep_alive
 

@@ -11,10 +11,13 @@ y resuelve vínculos por título con fuzzy matching.
 
 from __future__ import annotations
 
+import asyncio
 import difflib
+import json
 import logging
 import unicodedata
 from datetime import date
+from pathlib import Path
 
 from notion_client import AsyncClient as NotionAsyncClient
 
@@ -40,20 +43,44 @@ def _normalizar(texto: str) -> str:
 
 
 class NotionAdapter(NotionPort):
-    """Adaptador concreto de la API de Notion con descubrimiento dinámico."""
+    """Adaptador concreto de la API de Notion con descubrimiento dinámico y cache persistente."""
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self._client = NotionAsyncClient(auth=settings.notion_token)
         self._root_page_id = settings.notion_root_page_id
+        self._lock = asyncio.Lock()
 
-        # Mapa lazy: se llena en la primera operación que lo necesite.
-        # Estructura: {"Tareas": {"id": "abc...", "relations": {"Proyecto": "def...", ...}}}
+        # Cache en disco para mapeo de bases de datos
+        self._cache_file = Path(settings.chroma_persist_dir).resolve().parent / "notion_db_map.json"
+
+        # Mapa de bases de datos: {"Notas": {"id": "...", "data_source_id": "...", "relations": {...}}}
         self._db_map: dict[str, dict] = {}
+        self._cargar_cache_disco()
 
         # Cache de título→page_id por base de datos (se llena bajo demanda).
         # Estructura: {"db_id_abc": {"proyecto gwen os": "page_id_xyz", ...}}
         self._title_cache: dict[str, dict[str, str]] = {}
+
+    def _cargar_cache_disco(self) -> None:
+        """Carga el mapa de bases de datos desde el archivo local si existe."""
+        if self._cache_file.exists():
+            try:
+                with open(self._cache_file, "r", encoding="utf-8") as f:
+                    self._db_map = json.load(f)
+                logger.info("Mapeo de Notion cargado desde cache en disco (%d bases)", len(self._db_map))
+            except Exception as e:
+                logger.warning("No se pudo leer cache de Notion en disco: %s", e)
+
+    def _guardar_cache_disco(self) -> None:
+        """Persiste el mapa de bases de datos a disco."""
+        try:
+            self._cache_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self._cache_file, "w", encoding="utf-8") as f:
+                json.dump(self._db_map, f, indent=2, ensure_ascii=False)
+            logger.debug("Mapeo de Notion guardado en disco (%s)", self._cache_file)
+        except Exception as e:
+            logger.warning("No se pudo guardar cache de Notion en disco: %s", e)
 
     # ── Descubrimiento recursivo ────────────────────────────────
 
@@ -64,19 +91,11 @@ class NotionAdapter(NotionPort):
 
         Retorna un diccionario: {"Nombre de la BD": "ID_DE_LA_BD"}.
         Las bases llamadas "Untitled" se ignoran para evitar colisiones.
-
-        Args:
-            block_id: ID del bloque a escanear.
-            _depth: Profundidad actual de recursión (uso interno).
-            max_depth: Profundidad máxima de recursión (default: 4).
         """
         if _depth >= max_depth:
             return {}
 
         bases_encontradas: dict[str, str] = {}
-
-        # Solo recurrir en tipos de bloque que son "contenedores estructurales"
-        # (no en bulleted_list_item, heading, quote, etc. que son contenido)
         _TIPOS_ESTRUCTURALES = {"child_page", "column_list", "column"}
 
         try:
@@ -91,7 +110,6 @@ class NotionAdapter(NotionPort):
 
             if tipo == "child_database":
                 titulo = bloque["child_database"]["title"]
-                # Filtrar bases sin nombre explícito
                 if titulo and titulo.strip() and titulo.strip() != "Untitled":
                     bases_encontradas[titulo.strip()] = bloque_id
                     logger.debug("Base de datos descubierta: %s -> %s", titulo, bloque_id)
@@ -106,66 +124,94 @@ class NotionAdapter(NotionPort):
 
     # ── Lazy loading + introspección de schema ──────────────────
 
-    async def _asegurar_mapeo(self) -> None:
-        """Descubre bases de datos y sus relaciones si no se ha hecho aún."""
-        if self._db_map:
-            return
+    async def _asegurar_mapeo(self, force: bool = False) -> None:
+        """Descubre bases de datos y sus relaciones si no se ha hecho aún o si se fuerza refresh."""
+        async with self._lock:
+            if self._db_map and not force:
+                return
 
-        # Paso 1: Descubrir todas las bases
-        bases = await self.descubrir_bases_de_datos(self._root_page_id)
-        self._db_map = bases
+            if not force and self._cache_file.exists():
+                self._cargar_cache_disco()
+                if self._db_map:
+                    return
 
-        # Paso 2: Para cada base, pedir su schema e inspeccionar relaciones
-        nuevos_mapas: dict[str, dict] = {}
-        for nombre_db, db_id in self._db_map.items():
-            if isinstance(self._db_map[nombre_db], dict):
-                continue
+            logger.info("Iniciando escaneo de bases de datos en Notion desde root: %s", self._root_page_id)
+            bases_raw = await self.descubrir_bases_de_datos(self._root_page_id)
 
-            relations: dict[str, str] = {}
-            try:
-                db_info = await self._client.databases.retrieve(database_id=db_id)
-                properties = db_info.get("properties")
-                
-                # En versiones recientes de la API de Notion, las propiedades
-                # se movieron a "data_sources".
-                if not properties and "data_sources" in db_info:
-                    data_sources = db_info["data_sources"]
-                    if data_sources:
-                        ds_id = data_sources[0]["id"]
-                        ds_info = await self._client.data_sources.retrieve(data_source_id=ds_id)
-                        properties = ds_info.get("properties", {})
-                
-                if not properties:
-                    properties = {}
+            nuevos_mapas: dict[str, dict] = {}
+            for nombre_db, db_id in bases_raw.items():
+                relations: dict[str, str] = {}
+                data_source_id: str | None = None
+                try:
+                    db_info = await self._client.databases.retrieve(database_id=db_id)
+                    properties = db_info.get("properties")
 
-                for prop_name, prop_def in properties.items():
-                    if prop_def.get("type") == "relation":
-                        related_db_id = prop_def["relation"]["database_id"]
-                        relations[prop_name] = related_db_id
-            except Exception as e:
-                logger.warning("No se pudo leer schema de '%s': %s", nombre_db, e)
+                    if not properties and "data_sources" in db_info:
+                        data_sources = db_info["data_sources"]
+                        if data_sources:
+                            ds_id = data_sources[0]["id"]
+                            data_source_id = ds_id
+                            ds_info = await self._client.data_sources.retrieve(data_source_id=ds_id)
+                            properties = ds_info.get("properties", {})
 
-            # Reemplazamos el id crudo por la estructura completa en memoria
-            nuevos_mapas[nombre_db] = {
-                "id": db_id,
-                "relations": relations
-            }
-        
-        self._db_map = nuevos_mapas
+                    if not properties:
+                        properties = {}
 
-        logger.info(
-            "Mapeo completado: %d bases descubiertas, %d con relaciones",
-            len(self._db_map),
-            sum(1 for v in self._db_map.values() if v["relations"]),
-        )
+                    for prop_name, prop_def in properties.items():
+                        if prop_def.get("type") == "relation":
+                            related_db_id = prop_def["relation"]["database_id"]
+                            relations[prop_name] = related_db_id
+                except Exception as e:
+                    logger.warning("No se pudo leer schema de '%s': %s", nombre_db, e)
+
+                nuevos_mapas[nombre_db] = {
+                    "id": db_id,
+                    "data_source_id": data_source_id,
+                    "relations": relations,
+                }
+
+            self._db_map = nuevos_mapas
+            self._guardar_cache_disco()
+
+            logger.info(
+                "Mapeo completado: %d bases descubiertas, %d con relaciones",
+                len(self._db_map),
+                sum(1 for v in self._db_map.values() if v.get("relations")),
+            )
 
     async def _obtener_db_id(self, nombre_base: str) -> str:
-        """Obtiene el ID de una base de datos por nombre. Lanza KeyError si no existe."""
+        """Obtiene el ID de una base de datos por nombre con resolución flexible."""
         await self._asegurar_mapeo()
+
+        # 1. Match exacto
         entry = self._db_map.get(nombre_base)
-        if not entry:
-            raise KeyError(f"Base de datos '{nombre_base}' no encontrada en el mapa")
-        return entry["id"]
+        if entry and isinstance(entry, dict):
+            return entry["id"]
+
+        # 2. Match normalizado (case-insensitive, sin tildes)
+        nombre_norm = _normalizar(nombre_base)
+        for nombre, info in self._db_map.items():
+            if _normalizar(nombre) == nombre_norm:
+                return info["id"]
+
+        # 3. Match parcial / fuzzy
+        for nombre, info in self._db_map.items():
+            k_norm = _normalizar(nombre)
+            if nombre_norm in k_norm or k_norm in nombre_norm:
+                return info["id"]
+
+        # 4. Fallback: forzar refresh por si la base es nueva
+        logger.info("Base '%s' no encontrada en cache, refrescando mapeo...", nombre_base)
+        await self._asegurar_mapeo(force=True)
+
+        for nombre, info in self._db_map.items():
+            if _normalizar(nombre) == nombre_norm or nombre_norm in _normalizar(nombre):
+                return info["id"]
+
+        bases_disponibles = list(self._db_map.keys())
+        raise KeyError(
+            f"Base de datos '{nombre_base}' no encontrada en el mapa. Bases disponibles: {bases_disponibles}"
+        )
 
     # ── Resolución de títulos (fuzzy matching) ──────────────────
 
@@ -323,26 +369,58 @@ class NotionAdapter(NotionPort):
         filtro: dict | None = None,
         orden: list[dict] | None = None,
     ) -> list[dict]:
-        """Consulta una base de datos con filtros opcionales."""
-        kwargs: dict = {"database_id": database_id}
+        """Consulta una base de datos con filtros opcionales soportando databases y data_sources."""
+        filter_kwargs: dict = {}
         if filtro:
-            kwargs["filter"] = filtro
+            filter_kwargs["filter"] = filtro
         if orden:
-            kwargs["sorts"] = orden
+            filter_kwargs["sorts"] = orden
 
-        resultados = []
-        response = await self._client.databases.query(**kwargs)
-        resultados.extend(response.get("results", []))
+        # Caso 1: API con databases.query tradicional
+        if hasattr(self._client.databases, "query"):
+            try:
+                kwargs = {"database_id": database_id, **filter_kwargs}
+                resultados = []
+                response = await self._client.databases.query(**kwargs)
+                resultados.extend(response.get("results", []))
+                while response.get("has_more"):
+                    response = await self._client.databases.query(
+                        **kwargs, start_cursor=response["next_cursor"]
+                    )
+                    resultados.extend(response.get("results", []))
+                return resultados
+            except Exception as e:
+                logger.debug("databases.query falló (%s), intentando vía data_sources...", e)
 
-        # Paginación
-        while response.get("has_more"):
-            response = await self._client.databases.query(
-                **kwargs,
-                start_cursor=response["next_cursor"],
-            )
+        # Caso 2: API reciente vía data_sources.query
+        ds_id = database_id
+        # Buscar si tenemos el data_source_id en el mapa
+        for info in self._db_map.values():
+            if isinstance(info, dict) and info.get("id") == database_id and info.get("data_source_id"):
+                ds_id = info["data_source_id"]
+                break
+
+        if ds_id == database_id and hasattr(self._client, "databases"):
+            try:
+                db_info = await self._client.databases.retrieve(database_id=database_id)
+                if "data_sources" in db_info and db_info["data_sources"]:
+                    ds_id = db_info["data_sources"][0]["id"]
+            except Exception as e:
+                logger.warning("No se pudo obtener data_source para base %s: %s", database_id, e)
+
+        if hasattr(self._client, "data_sources"):
+            kwargs = {"data_source_id": ds_id, **filter_kwargs}
+            resultados = []
+            response = await self._client.data_sources.query(**kwargs)
             resultados.extend(response.get("results", []))
+            while response.get("has_more"):
+                response = await self._client.data_sources.query(
+                    **kwargs, start_cursor=response["next_cursor"]
+                )
+                resultados.extend(response.get("results", []))
+            return resultados
 
-        return resultados
+        return []
 
     # ── Áreas ───────────────────────────────────────────────────
 

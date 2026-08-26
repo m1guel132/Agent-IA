@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     # --- Ollama ---
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.1:8b"
+    ollama_model_rapido: str = "qwen3.5:4b"
     ollama_embed_model: str = "nomic-embed-text"
     ollama_keep_alive: str = "30m"
 
