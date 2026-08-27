@@ -18,6 +18,7 @@ from agent_ia.infrastructure.chroma_adapter import ChromaAdapter
 from agent_ia.infrastructure.obsidian_adapter import ObsidianAdapter
 from agent_ia.infrastructure.notion_adapter import NotionAdapter
 from agent_ia.infrastructure.json_study_adapter import JsonStudyAdapter
+from agent_ia.infrastructure.json_sync_adapter import JsonSyncAdapter
 from agent_ia.use_cases.agente_curador import AgenteCurador
 from agent_ia.use_cases.agente_estudio import AgenteEstudio
 from agent_ia.use_cases.agente_sync import AgenteSync
@@ -77,6 +78,7 @@ def get_hermes() -> Hermes:
     obsidian = ObsidianAdapter(settings)
     notion = NotionAdapter(settings)
     study_repo = JsonStudyAdapter()
+    sync_repo = JsonSyncAdapter()
 
     # --- Agents ---
     curador = AgenteCurador(
@@ -91,7 +93,13 @@ def get_hermes() -> Hermes:
         obsidian=obsidian,
         notion=notion,
     )
-    sync = AgenteSync()
+    sync = AgenteSync(
+        sync_port=sync_repo,
+        notion=notion,
+        obsidian=obsidian,
+        vector_store=vector_store,
+        llm=llm_principal,
+    )
     plan = AgentePlan(llm=llm_plan, notion=notion)
 
     # --- Orchestrator ---

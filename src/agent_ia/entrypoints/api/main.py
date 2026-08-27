@@ -99,6 +99,42 @@ async def health():
     }
 
 
+@app.post("/sync/ejecutar", tags=["sync"])
+async def ejecutar_sync():
+    """Dispara una sincronización bidireccional inmediata (Notion ↔ Obsidian + Alertas)."""
+    from agent_ia.entrypoints.api.dependencies import get_hermes
+
+    hermes = get_hermes()
+    agente_sync = hermes.obtener_agente("sync")
+    if not agente_sync:
+        return {"estado": "error", "mensaje": "AgenteSync no disponible"}
+
+    resultado = await agente_sync.ejecutar("sincronizar")
+    return {
+        "estado": resultado.estado.value,
+        "mensaje": resultado.mensaje,
+        "datos": resultado.datos,
+    }
+
+
+@app.post("/webhook/sync", tags=["sync"])
+async def webhook_sync(payload: dict):
+    """Endpoint webhook para recibir eventos de n8n, Todoist o automatizaciones externas."""
+    from agent_ia.entrypoints.api.dependencies import get_hermes
+
+    hermes = get_hermes()
+    agente_sync = hermes.obtener_agente("sync")
+    if not agente_sync:
+        return {"estado": "error", "mensaje": "AgenteSync no disponible"}
+
+    resultado = await agente_sync.ejecutar("webhook", contexto={"webhook_payload": payload})
+    return {
+        "estado": resultado.estado.value,
+        "mensaje": resultado.mensaje,
+        "datos": resultado.datos,
+    }
+
+
 def start() -> None:
     """Entry point para el script `agent-api`."""
     settings = get_settings()
