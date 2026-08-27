@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: Wen
+    given-names: Kb
+title: "Agentic OS: Governance-First Workflows for AI Coding Agents"
+version: 1.8.24
+date-released: 2026-08-24
+url: "https://github.com/KbWen/agentic-os"
+abstract: "A governance-first framework for AI coding agents. Portable workflows, delivery gates, engineering guardrails, and 14 professional skills for Claude Code, OpenAI Codex, Google Antigravity, Cursor, GitHub Copilot, and other coding agents."
+keywords:
+  - ai-agent
+  - agent-framework
+  - ai-governance
+  - agentic-development
+  - ai-guardrails
+  - ai-workflow
+  - claude-code
+  - cursor-rules
+  - agents-md
+  - coding-agent
+  - llm-ops
+  - developer-tools
+  - google-antigravity
+  - codex-platform
+  - token-optimization

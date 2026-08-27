@@ -1,0 +1,408 @@
+name: Validate Framework Integrity
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  # Force UTF-8 for all Python I/O across the matrix. Windows runners default to
+  # cp1252, which has previously broken this repo's cross-platform tooling. (#163)
+  PYTHONUTF8: "1"
+
+concurrency:
+  # Group by branch (head_ref on PRs, ref_name on push) so a new push cancels the
+  # prior in-flight run for the same branch rather than across all refs. (#163)
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  # Detect whether the change touches anything beyond pure documentation. Heavy
+  # jobs (Windows pytest, deploy smoke tests, ubuntu pytest) are skipped on
+  # docs-only changes — they can't regress when no code/governance/CI moved. The
+  # three branch-protection-required checks (Framework Validation, ShellCheck,
+  # Check Markdown Links) are intentionally NOT gated, so protection still holds.
+  changes:
+    name: Detect change scope
+    runs-on: ubuntu-latest
+    outputs:
+      heavy: ${{ steps.scope.outputs.heavy }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed files (docs-only -> skip heavy jobs)
+        id: scope
+        shell: bash
+        run: |
+          set -uo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base_sha="${{ github.event.pull_request.base.sha }}"
+            head_sha="${{ github.event.pull_request.head.sha }}"
+          else
+            base_sha="${{ github.event.before }}"
+            head_sha="${{ github.sha }}"
+          fi
+          zero="0000000000000000000000000000000000000000"
+          if [ -z "$base_sha" ] || [ "$base_sha" = "$zero" ]; then
+            echo "No usable base sha ($base_sha) — running full suite (fail-safe)."
+            echo "heavy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! files="$(git diff --name-only "${base_sha}...${head_sha}" 2>/dev/null)"; then
+            echo "git diff failed — running full suite (fail-safe)."
+            echo "heavy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Changed files:"
+          printf '%s\n' "$files"
+          heavy=false
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            case "$f" in
+              # Inert documentation surfaces — never exercised by the test suite.
+              README.md|README_*.md|llms.txt|LICENSE|CHANGELOG.md|CONTRIBUTING.md|CITATION.cff) ;;
+              docs/*|.agentcortex/docs/*) ;;
+              # .agentcortex/context/* is SSoT/runtime state — NOT inert; changes there
+              # must trigger security-relevant jobs (AC-12 threat-aware classifier).
+              # Anything else (code, AGENTS.md/.agent governance, tests, CI) is heavy.
+              *) heavy=true; break ;;
+            esac
+          done <<< "$files"
+          echo "Heavy (code/test/deploy) jobs needed: $heavy"
+          echo "heavy=$heavy" >> "$GITHUB_OUTPUT"
+
+  validate:
+    name: Framework Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Run validate.sh
+        run: |
+          chmod +x .agentcortex/bin/validate.sh
+          .agentcortex/bin/validate.sh
+
+  validate-python39:
+    name: Framework Validation (Python 3.9)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.9'
+
+      - name: Run validate.sh
+        run: |
+          chmod +x .agentcortex/bin/validate.sh
+          .agentcortex/bin/validate.sh
+
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Lint shell scripts
+        run: |
+          shopt -s globstar nullglob
+          scripts=()
+          for f in **/*.sh; do
+            [[ -f "$f" ]] || continue
+            scripts+=("$f")
+          done
+          for f in .githooks/*.sample; do      # opt-in hooks are bash w/ shebang (backlog #74)
+            [[ -f "$f" ]] || continue
+            scripts+=("$f")
+          done
+          if [[ ${#scripts[@]} -eq 0 ]]; then
+            echo "No shell scripts found"
+            exit 0
+          fi
+          failed=0
+          for f in "${scripts[@]}"; do
+            echo "::group::$f"
+            if ! shellcheck -S warning -x "$f"; then
+              failed=1
+            fi
+            echo "::endgroup::"
+          done
+          exit $failed
+
+  markdown-links:
+    name: Check Markdown Links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Check internal links
+        run: |
+          status=0
+          while IFS= read -r file; do
+            while IFS= read -r link; do
+              # Skip external URLs, anchors, and mailto
+              case "$link" in
+                http://*|https://*|mailto:*|\#*) continue ;;
+              esac
+              # Strip anchor from path
+              path="${link%%#*}"
+              [ -z "$path" ] && continue
+              # Resolve relative to file's directory
+              dir="$(dirname "$file")"
+              target="$dir/$path"
+              if [ ! -e "$target" ]; then
+                echo "::error file=$file::Broken link: $link"
+                status=1
+              fi
+            done < <(grep -oP '\[.*?\]\(\K[^)]+' "$file" 2>/dev/null)
+          done < <(find . -name '*.md' -not -path './.git/*')
+          exit $status
+
+  validate-windows:
+    name: Framework Validation (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Run validate.ps1
+        shell: pwsh
+        run: |
+          .agentcortex/bin/validate.ps1
+
+  deploy-smoke-test:
+    name: Deploy Smoke Test
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.heavy == 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Create test project and deploy
+        run: |
+          mkdir -p /tmp/test-project
+          cd /tmp/test-project
+          git init
+          # Use canonical deploy.sh directly (deploy_brain.sh is a wrapper
+          # meant for downstream repos, not source-repo CI).
+          bash "$GITHUB_WORKSPACE/.agentcortex/bin/deploy.sh" .
+
+      - name: Validate downstream project
+        # Load-bearing, not style. Without a `shell:` key GitHub runs `run:` blocks as
+        # `bash -e {0}` -- errexit but NO pipefail -- so `validate.sh | tee` reports
+        # tee's status and a FAILING downstream validator would land a green job. This
+        # step is the only place CI asserts the deployed validator's exit code.
+        # `shell: bash` alone fixes it (GitHub maps it to `bash --noprofile --norc -eo
+        # pipefail {0}`); the explicit `set -o pipefail` is belt-and-braces so the
+        # guarantee does not silently depend on that mapping staying put.
+        shell: bash
+        run: |
+          set -o pipefail
+          cd /tmp/test-project
+          bash .agentcortex/bin/validate.sh | tee /tmp/downstream-validate.txt
+
+      - name: Downstream signal honesty
+        shell: bash
+        run: |
+          # A tool deploy.sh deliberately does not ship names its own reason at the call
+          # site (run_python_check_source_only / -AbsentReason), so a bare "tool not
+          # present" means an ACCIDENTAL omission from the runtime-tools whitelist. That
+          # has happened before: #334 shipped check_ssot_caps.py missing and the deployed
+          # validator printed exactly this string.
+          #
+          # SCOPE, stated precisely because an earlier draft of this comment overclaimed:
+          # this catches only checks invoked through run_python_check WITHOUT a native
+          # presence guard. It could NOT have caught backlog #173 -- the audit-chain check
+          # sits behind [[ -f INDEX.jsonl ]], and a fresh target ships no archive, so it
+          # never runs and never prints. The same blind spot covers any whitelisted tool
+          # whose call site guards on the TOOL'S OWN presence and emits its own reassuring
+          # SKIP -- deleting it leaves this job green with an unqualified pass. Verified
+          # today on a real deploy with generate_safety_nucleus.py: removing it prints
+          # "generator not deployed (safe to ignore)" over a genuinely broken install.
+          # (A call site guarded on a capability FILE that is not deployed -- the eval
+          # runner, the capabilities validator -- is a different and harmless case: the
+          # block never executes downstream, so the tool's absence changes nothing.)
+          # The shape, not a list: an enumeration here rots, and two earlier drafts of
+          # this comment got the membership wrong. Closing the gap properly needs an
+          # expected-tool list, deliberately rejected (Work Log D-1); the deployed FILE
+          # SET is instead pinned by tests/ci/fixtures/deploy_manifest_golden.txt, a
+          # strictly stronger check for absence-from-deploy.
+          if grep -qE '^\[SKIP\] .* -- tool not present$' /tmp/downstream-validate.txt; then
+            echo "::error::Deployed validator reports an unexplained absent tool:"
+            grep -E '^\[SKIP\] .* -- tool not present$' /tmp/downstream-validate.txt
+            echo "Add it to the runtime_tools whitelist in deploy.sh (BOTH sites), or"
+            echo "state the reason at the call site if it is deliberately source-only."
+            exit 1
+          fi
+
+  docs-pins:
+    # Docs-only PRs classify heavy=false and skip the pytest jobs — but the
+    # content-pin tests (README/INSTALL/spec prose) exist precisely to catch
+    # docs edits. This fast job (pure file reads, <1s) runs the pins when the
+    # heavy suite is skipped; heavy PRs already run them via the full suite,
+    # so the two paths are complementary, never double-gated (backlog #112).
+    name: Docs Content Pins
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.heavy != 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: .github/requirements-ci.txt
+
+      - name: Install test dependencies
+        run: pip install -r .github/requirements-ci.txt
+
+      - name: Run docs content-pin tests
+        run: python -m pytest tests/ci/ -m docs_pin -v
+
+  test-ci-structural:
+    name: CI Structural Tests
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.heavy == 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: .github/requirements-ci.txt
+
+      - name: Install test dependencies
+        run: pip install -r .github/requirements-ci.txt
+
+      - name: Run CI structural + guard + framework tests
+        run: python -m pytest tests/ci/ tests/guard/ .agentcortex/tests/ -v
+
+  test-windows:
+    # Sharded across parallel runners with pytest-split — the subprocess/IO-bound
+    # deploy/validate tests are slow on Windows (~8 min unsharded); splitting across
+    # separate machines cuts wall-clock without single-machine contention (pytest-xdist
+    # was measured SLOWER here). Non-required check, so the matrix-suffixed job names do
+    # not affect branch protection. fail-fast:false so every shard reports independently.
+    name: Pytest (Windows)
+    runs-on: windows-latest
+    needs: changes
+    if: needs.changes.outputs.heavy == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: .github/requirements-ci.txt
+
+      - name: Install test dependencies
+        run: pip install -r .github/requirements-ci.txt
+
+      # Windows previously ran only validate.ps1 — cross-platform pytest
+      # regressions (CRLF, path separators, cp1252) went uncaught. (#163)
+      # --splits/--group: balanced by the committed .test_durations (#88). Without it
+      # pytest-split falls back to an even COUNT split, which clustered every
+      # subprocess-shelling deploy test onto one shard — measured on PR #417 as
+      # 21m57s / 3m19s / 4m14s. Unknown test ids (added since the file was generated)
+      # degrade to count-splitting, so drift is graceful, not breaking. Regenerate with:
+      #   pytest tests/ci/ tests/guard/ .agentcortex/tests/ -q --store-durations
+      # on Windows — the file's value is the RELATIVE weights, and the dominant cost
+      # (subprocess spawn) is platform-shaped.
+      - name: Run test suite on Windows (shard ${{ matrix.group }}/3)
+        run: python -m pytest tests/ci/ tests/guard/ .agentcortex/tests/ --splits 3 --group ${{ matrix.group }} -q
+
+  utf8-and-critical-files:
+    name: UTF-8 Sweep + Critical Files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12'
+
+      # File-validity sweep: every tracked .md/.sh/.yml/.yaml must decode as
+      # UTF-8 (cp1252/latin-1 files have repeatedly broken cross-platform
+      # validator tooling), plus a presence pre-check for governance-critical
+      # files before anything else relies on them. (#163)
+      - name: UTF-8 file-validity sweep + critical-file presence
+        run: |
+          python - <<'PYEOF'
+          import subprocess, sys
+          from pathlib import Path
+
+          critical = [
+              "AGENTS.md", "CLAUDE.md", "GEMINI.md",
+              ".agent/config.yaml",
+              ".agentcortex/bin/validate.sh", ".agentcortex/bin/validate.ps1",
+              ".agentcortex/bin/deploy.sh",
+          ]
+          missing = [c for c in critical if not Path(c).is_file()]
+          if missing:
+              print(f"::error::critical file(s) missing: {missing}")
+              sys.exit(1)
+
+          tracked = subprocess.run(
+              ["git", "ls-files", "*.md", "*.sh", "*.yml", "*.yaml"],
+              capture_output=True, text=True, check=True,
+          ).stdout.splitlines()
+          bad = []
+          for name in tracked:
+              try:
+                  Path(name).read_bytes().decode("utf-8")
+              except (UnicodeDecodeError, OSError) as exc:
+                  bad.append((name, str(exc)))
+          for name, err in bad:
+              print(f"::error file={name}::not valid UTF-8: {err}")
+          print(f"checked {len(tracked)} tracked files; critical files present: {len(critical)}")
+          sys.exit(1 if bad else 0)
+          PYEOF
+
+  deploy-no-python:
+    name: Deploy Smoke Test (No Python)
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.heavy == 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Create test project and deploy without Python
+        run: |
+          mkdir -p /tmp/test-no-python
+          cd /tmp/test-no-python
+          git init
+          bash "$GITHUB_WORKSPACE/.agentcortex/bin/deploy.sh" .
+
+      - name: Validate downstream project without Python
+        run: |
+          cd /tmp/test-no-python
+          bash .agentcortex/bin/validate.sh --no-python

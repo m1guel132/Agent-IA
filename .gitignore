@@ -14,10 +14,10 @@ wheels/
 .env.*
 
 # Local data & vector store
-data/chroma/
-data/notion_db_map.json
-data/study_board.json
-data/*.json
+/data/chroma/
+/data/notion_db_map.json
+/data/study_board.json
+/data/*.json
 *.log
 
 # LaTeX build artifacts

@@ -1,0 +1,57 @@
+# Agentic OS Source Repo
+
+# Runtime state (work logs are session-local)
+.agentcortex/context/work/*.md
+.agentcortex/context/work/*.lock.json
+!.agentcortex/context/work/.gitkeep.md
+.agentcortex/context/.guard_receipt.json
+.agentcortex/context/.guard_receipts/
+.agentcortex/context/.guard_locks/
+.agentcortex/context/private/
+.agent/private/
+# Governance hook telemetry (sentinel / precompact violation logs)
+.agentcortex/context/*-violations.jsonl
+
+# Claude Code local state
+.claude/scheduled_tasks.lock
+# Per-operator permissions. .claude/settings.json declares this file user-local;
+# it was tracked anyway until 2026-08-13, so every session's permission edits
+# dirtied the shared tree. settings.json (shared) stays tracked.
+.claude/settings.local.json
+
+# Deploy artifacts
+.agentcortex-src/
+*.acx-incoming
+temp_downstream/
+
+# Local dev experiments (not part of the framework)
+scratch/
+cache_demo.py
+
+# Third-party AI tool local state
+.openrouter/
+.claude-chat/
+.cursor/
+.antigravity/scratch/
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Node (if subcomponents added)
+node_modules/
+.claude/worktrees/

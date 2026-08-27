@@ -1,0 +1,602 @@
+# Changelog
+
+## [1.8.24] - 2026-08-24
+
+A sibling fork of the same ancestor reported six governance findings. One was worth fixing here, and the interesting part is that the fix broke three times on the way — each break the same shape as the original defect, and each caught by something other than the person who wrote it.
+
+- **The guard that protects the governance record stopped agreeing with `.gitignore` and started asking git.** `.gitignore preserves persistent SSoT artifacts` compared whole `.gitignore` lines against a fixed list of directory paths, so `.agentcortex/context/archive/*.md` — which hides the archived Work Logs without ever spelling that directory — sailed past it. Reproduced before fixing: one appended line left `validate.sh` at `fail=0` while `git check-ignore` confirmed the logs were hidden. **The same blind spot had grown independently in both forks of the same ancestor**, which is what makes it a class rather than a slip: the downstream's own Write Budget Protocol told agents to archive into a gitignored path, so following the rules deleted records from the repo, with the guard green throughout. The check now probes a representative FILE inside each protected artifact (a directory probe reproduces the original blindness, since `docs/specs/*.md` never matches the directory), and is no longer gated on `.gitignore` existing — that branch emitted `.gitignore absent -- no persistent SSoT artifacts are ignored`, a PASS asserted without looking at anything, while `.git/info/exclude` and a global excludes file hide files just as effectively.
+- **Three regressions were introduced by the fix and caught before ship, none of them by self-review.** (1) `check-ignore -v` exits 0 whenever a pattern **matched**, negations included: on the ordinary `docs/adr/*` + `!docs/adr/*.md` idiom `-v` exits 0 while `-q` exits 1 and git tracks the file, so reading `-v` as the verdict reds a correct adopter **and names their protective `!` line as the pattern to remove**. (2) `check-ignore` skips **tracked** paths without `--no-index`, so `current_state.md` — the one real probe — was inert in every healthy deploy: a detection *narrowing* inside a change whose stated purpose was broadening. (3) The outer-repo branch discriminated on `check-ignore -- .`, and a blank CRLF line is not blank to git — it is the pattern `\r`, which git strips to the empty string, and the empty pattern matches the pathspec `.`. That FAILed **every `core.autocrlf=true` checkout, including this repository**. It survived a self-review, seventeen scenarios and a green 912-test suite, because every scenario deployed a fresh tree and `deploy.sh` writes LF. The durable form: **a fresh-deploy fixture is not a checkout.** All three are now mutation-guarded; the outer-repo cause re-labels *after* the probe loop and only when all probes are ignored and `rev-parse --show-prefix` is non-empty, an ordering that cannot turn a PASS into a FAIL.
+- **The audit playbook's claim is bound to the mechanism instead of restated in prose.** `audit-guardrails.md` Test 1 asserted `git status` shows none of `.agent/`, `.agents/`, `.antigravity/`, `.agentcortex/context/`; a real cold deploy shows **58 / 29 / 1 / 2** paths, and its command did not run at all (`--force` is not a `deploy.sh` flag; the catch-all `*)` takes it as TARGET). Rewritten to the verified ignore set and re-pointed at the canonical `deploy.sh` — this guide **ships downstream**, and the wrapper it named takes its update path in an installed project, cloning from the remote and writing an `.agentcortex-src/` cache into the reader's own tree. A test now extracts Test 1's own assertion list from the page and executes it against a real deployed ignore block; reintroducing the original drift shape turns it red. Also repaired, all adopter-facing: the shell snippet's line continuations had been collapsed into one long line, the closing note still named `.gitignore:<line>` after the message was generalised to any ignore source, two wrong glyphs in the zh-TW twin, and an `rm -rf` cleanup a failed `cd` could point elsewhere.
+- **No claim-decay mechanism, and the reason is the more useful half.** The report asked for `<!-- claim: verified-at <sha> -->` markers on quantified claims. The instance found here was **mis-attributed** — `pass=87 warn=1 fail=0 skip=6` sits under a dated `### Ship-chore-v1.8.21-release-2026-08-14` heading and was correct for v1.8.21. The SSoT's dated sections already supply the as-of anchor the report says is missing, and a "remember to tag" convention with no verifier is exactly the ritual-without-discriminating-power defect the same report diagnoses (ADR-011 bans unenforced directives). Closed with a reopen trigger: a second quantified claim found false inside a *living*, non-dated governance surface.
+
+**Downstream delta.** On a healthy tree, nothing changes — measured: upgrading a v1.8.23 install with its own work log, spec and ignore rule left the tallies **identical** at `96/6/2/6`. What changes is what gets caught: a `.gitignore` hiding the archive or `docs/specs/` by a content glob, a `.git/info/exclude` or global excludes file doing the same (previously not even consulted), and a project deployed under an outer repository's ignored path — each now a FAIL naming the exact `source:line`, with the outer-repo case carrying its own remedy and an explicit warning not to delete that rule. Equally deliberate is what is **not** flagged: the `dir/*` + `!dir/*.md` negation idiom, a CRLF `.gitignore`, and a non-git tree, which reports SKIP rather than a false PASS. All four changed files are `core` tier, so this arrives on the next deploy with no adopter action. No new flags, no new deployed files, no engine or gate change.
+
+**What this release does not do.** The probes are **representative, not exhaustive**: a pattern narrower than the probe name (`archive/*-worklog.md`) still slips through. It catches the whole-directory and whole-extension shapes, which is the class that bit downstream. The parity and structural guards live in **non-required** CI contexts, so they fail visibly on a PR and nothing more. Pytest is never exercised under the 3.9 floor — CI's 3.9 job runs `validate.sh` only — so 3.9 compliance rests on a static ratchet plus a scan. And there is still **no test pinning version consistency across the seven release surfaces**; this release's banners were bumped by hand again.
+
+**Records.** Full CI-equivalent suite (no `-m` filter, run as CI runs it): **913 passed, 1 skipped, 0 failed**. Both validators on this repo `pass=118 warn=3 fail=0 skip=2`, identical. ADR-006 native-check ratchet **unmoved at 204/204** — the stricter guard cost no headroom, because the same unit deleted a branch that asserted a PASS without checking anything. Four findings surfaced by doing the work were filed rather than folded in: **#183** workflow job-graph `needs:` integrity (a dangling `needs:` makes GitHub reject the whole workflow at parse time), **#184** PowerShell version floor plus a 5.1 CI arm (the shipped pre-commit hook invokes `powershell`, not `pwsh`), **#185** backtick-path reference integrity, **#186** `token-governance.md §8`'s compaction target colliding with the archived-Work-Log contract.
+
+## [1.8.23] - 2026-08-24
+
+The residue of a downstream adopter's v1.8.21 report, finished. Four units, and the interesting part is that each one unblocked the next: closing the encoding bug reproduced a governance contradiction, fixing that contradiction legalised the backlog step the CI-perf work needed, and the CI-perf work turned a latent secret-scanner false positive into a hard merge block that had to be fixed before anything could land.
+
+- **`validate.ps1` stopped mojibaking its own output (backlog #175, PR #417)**: it never set `[Console]::OutputEncoding`, so its `§` and `—` were rendered through the console code page — on a cp950/Big5 box they emerged as `0xA1B1` / `0xA158`. That property is **process-global** and the validator runs in the caller's live session, so the fix saves it, sets UTF-8, and restores it in a `finally` wrapping the whole script: **+15 lines, 0 deletions, no re-indentation** of the 2840-line body. Both mechanics were measured rather than assumed — a PowerShell `try` creates no scope, and `finally` runs on the script's `exit 1` while preserving the code, so the validator's pass/fail signal still propagates. **The backlog row was wrong and measurement corrected it**: it recorded "does not reproduce on `pwsh` 7", but on the redirected byte stream — the path CI and any log capture see — 5.1 and 7 emit identical bytes.
+- **`AGENTS.md` stopped forbidding the step `bootstrap.md` requires (backlog #178, PR #418)**: §Write Isolation scoped `_product-backlog.md` writes to spec-intake/ship, while `bootstrap.md §1` step 5 *mandates* a `Pending → In Progress` advance at bootstrap and calls it the only valid such transition. Under the documented precedence (AGENTS.md > workflows) the governance surface forbade the workflow's own step. **Reproduced live** during this wave's first bootstrap before being fixed. Resolved by widening the enumeration, not by moving the advance — the bootstrap step is the wanted behaviour, so the surface that failed to name it is the one that was wrong. §13 Deletion-First is satisfied by a **real trim**: that line carried two duplicate no-Python fallback clauses, merged into one. The directive-count ratchet held at 37/37 and the green was mutation-verified (adding one `MUST` yields `count 38 exceeds baseline 37`).
+- **The Windows CI shards balance by time instead of test count (backlog #88, PR #419)**: `--splits 3 --group N` ran with **no committed `.test_durations`**, so pytest-split fell back to an even *count* split and clustered every subprocess-shelling deploy test onto one shard — measured at **21m57s / 3m19s / 4m14s**, one runner carrying 74% of the work while two idled. A 897-entry durations file is now committed. Measured across two runs: **13m7s, then 11m24s** — a **1.67×–1.93×** wall-clock cut, quoted as a range because two runs of the same tree differed ~13% and picking the better number is a claim the data does not support. The row's own `7:14` figure was stale by ~3× and is corrected in place. `--splitting-algorithm least_duration` was measured and is *better* (exactly ideal) — and **rejected**, because it reorders tests across groups and 2.6% does not buy that risk.
+- **The secret scanner stopped failing on ordinary identifiers (backlog #171, PR #420)**: TruffleHog's Lob detector matches a word boundary, `live` or `test`, an underscore, then exactly 35 word characters — underscores included — so a plain snake_case name satisfies it and its verifier returns *verified*, which is why `--only-verified` never bounded this class. Latent until it wasn't: 35 same-shape identifiers were already sitting in the tree unflagged because the scan is range-scoped, and #88's 897-id durations file turned that into an outright job failure. `--exclude-detectors=lob` is now set — **one** detector, for a service this repo has no integration with, with `credential-scan` and the pre-commit credential floor untouched as second and third layers. The scope is machine-enforced by a new test asserting `lob` is the *only* permitted exclusion and that `--only-verified` cannot be dropped with it, **mutation-verified in both directions** before its green was trusted.
+
+**Records corrected rather than left to rot.** Backlog **#177**'s premise no longer holds and says so: its frozen-gate half is gone (`downstream-adaptability-optimization.md` reconciled `frozen` → `shipped`, after confirming the Spec Index entry exists first — under ADR-010 flipping an unindexed spec turns a skip into a FAIL), but **AC-S5's wording still blocks** collapsing the two `deploy.sh` sites, so that needs a spec-freshness update rather than an unfreeze. **#176** stays open carrying its decision (**delete**), its root cause (`e9355c7`, the commit that deliberately removed the parameter's last consumer), and both required guards. Three findings surfaced by doing the work were filed rather than folded in: **#179** (`/handoff §6` contradicts itself at the log-size cap), **#180** (`pytest.ini §norecursedirs` omits `.claude`, so a leftover worktree makes a bare local `pytest` double-collect), **#181** (no macOS CI runner — filed on a *verified absence*, 15 ubuntu + 2 windows + 0 macos, since a BSD-vs-GNU scan of both shipped shell scripts came back clean).
+
+**What this release does not do.** The shard rebalance improves **CI** wall-clock only — a local single-process run is unaffected by shard configuration. The durations file was generated on a Windows workstation rather than on `windows-latest`, which is why the measured 1.67×–1.93× fell short of the 2.2× predicted from those weights; regenerating on the runner is recorded as a follow-up, not done here. The file also goes stale as tests are added — pytest-split degrades to count-splitting for unknown ids, so drift is graceful, and **no guard detects staleness**. `Pytest (Windows)` remains a non-required context, so none of this changes what can block a merge. And there is still **no test pinning version consistency across the seven release surfaces** — this release's own banners were bumped by hand.
+
+Downstream delta: a Windows adopter on a non-UTF-8 console now reads `validate.ps1`'s output correctly instead of as mojibake, and the console is restored on exit including the failing path. Everything else is upstream-only — `tests/`, `.github/` and `.test_durations` never ship. No new gates, no new flags, no engine change.
+
+## [1.8.22] - 2026-08-17
+
+A downstream adopter reported that the deployed validator prints SKIP lines they cannot act on. Chasing it found something larger: the validators were reporting checks that never ran as an unqualified pass, and the two of them disagreed with each other about the same tree. Both halves are fixed here.
+
+- **The top line stopped claiming an unqualified pass over checks that never ran (PR #412)**: the reduced-assurance label was keyed on `PYTHON_BIN` alone, so an adopter with Python and referenced-but-absent tools was told `Agentic OS integrity check passed`, flat. This is the **second** occurrence of a class already fixed once here (backlog #149, where a whole work-log family emitted nothing and the summary still claimed a pass). The label now also keys on absent tools. Honest scope: only an absence with **no stated reason** qualifies the line — a fresh deploy still prints an unqualified pass while seven checks SKIP.
+- **A deliberately-unshipped tool now says so, at the call site (PR #412)**: three checks printed `-- tool not present`, a string that cannot distinguish "we chose not to ship this" from "your install is broken". The reason now travels with the call (`run_python_check_source_only` / `-AbsentReason`), and an absence with **no** reason is what the summary counts and what CI fails on — so "unexpected" is defined by a missing reason rather than by membership in a registry that can go stale. Backlog #173's prescribed `SOURCE_ONLY_TOOLS` allowlist was **rejected**: the identity it would re-encode already exists as `IS_SOURCE_REPO`, and its payload is a comment.
+- **ADR-003's tamper evidence reaches downstream (PR #412)**: `ship.md` instructs every downstream ship to *append* to `INDEX.jsonl` via a deployed tool while `check_audit_chain.py` was never in the whitelist — write-only tamper evidence. It now ships, in **both** `deploy.sh` sites per frozen-spec AC-S5. **Upgrade note, and it splits in two.** A log written before the hash chain existed — every entry simply missing `prev_sha` — is the realistic upgrade case and is **recoverable in one command**: `append_chain_entry.py migrate --path <INDEX.jsonl>` fills them in, verified end-to-end. Commit the result; the append-only witness compares the merge-base copy to the working copy, so it stays red until that migration is merged, and that visibility is deliberate — rewriting an audit log should be reviewable. A genuinely **broken** chain (an entry declaring a `prev_sha` that does not match its predecessor) is different: `migrate` **refuses** it by design and there is no automatic repair, because a tamper-evident log that can be silently fixed is not tamper-evident. The checker now prints the right guidance for whichever case it found, rather than leaving an adopter with a bare `BROKEN`.
+- **A permanent WARN whose fix was undeployable is gone (PR #412)**: the token-lifecycle ladder tested baseline-absence before updater-absence, so every adopter hit `seed with update_lifecycle_baseline.py --init` — naming a tool their tree does not contain. The honest SKIP four lines below it was unreachable downstream.
+- **The two validators stopped disagreeing about the same tree (PR #414)**: four divergences closed — the backlog row set the label-drift check reads (now a whole-cell match on active rows, ASCII padding, case-sensitive on both sides), archive size (`du -sk` counted disk-allocated blocks against ps1's byte sum, ~27% apart; both now sum bytes and both floor), a PASS gated on a bare glob that counted meta files (a downstream that had run `/spec-intake` but written no spec was told its frontmatter was valid over **zero** governed specs), and a PASS message that under-reported what it enforces. Also fixed, and verified as **pre-existing** rather than introduced: the label selector ran under `set -euo pipefail` unguarded, so a backlog whose rows are all Shipped aborted the entire validator mid-run — no `Summary:`, later checks never executed, exit 1 with nothing explaining why.
+
+**Ten downstream scenarios, simulated rather than assumed.** Fresh install · upgrade from the released v1.8.21 · downstream-authored state surviving that upgrade (SSoT edit, work log and own spec all preserved, zero upstream Ship History leakage) · re-deploy idempotency · spec-intake-run-but-no-spec · no-Python host · a downstream that has shipped once and written `INDEX.jsonl` · an adopter carrying a broken chain · a column-aligned backlog · a customised scaffold file. Each deploys for real and runs the **deployed** validator, with before/after against v1.8.21 on the three claims that matter: **22 assertions, 0 failures**. Both validators report `pass=118 warn=4 fail=0 skip=2` on the framework repo — identical. Full CI-equivalent suite: 896 passed, 1 skipped, 0 failed. ADR-006 native-check ratchet 202/203 → 204/204 with a recorded justification.
+
+**What this release does not do.** No parity guard can block a merge: `CI Structural Tests`, `Pytest (Windows)` and `Framework Validation (Windows)` are all non-required contexts, so the guards fail visibly on a PR and nothing more. The fixture-tree tally-parity test backlog #174 prescribed is not built. And a whitelisted tool whose call site guards on its own presence still leaves CI green while printing "safe to ignore" over a real break — the deployed file *set* is pinned by the manifest golden instead.
+
+## [1.8.21] - 2026-08-14
+
+An external audit said the Windows deploy path was broken. It wasn't — but the mechanism it found was real, and chasing it turned up a defect this repo had been writing off as environment noise for months. Four of the wave's findings are corrections to its own records.
+
+- **Windows launcher: accepted on capability, not existence (PR #405)**: `Resolve-BashLauncher` took any candidate that answered `bash --version` with exit 0. A bare `<git>\usr\bin\bash.exe` answers exactly that while carrying no `/usr/bin` on PATH, so `deploy.sh` dies at `dirname` with **exit 127** and writes no manifest — and that candidate sits *second* in both PowerShell entry points, so any Git layout without `bin\bash.exe` silently selects an unusable shell. The probe is now `command -v dirname && command -v mktemp`, exactly what the scripts use at startup, with the candidate list byte-identical so rejection can only narrow. The audit's headline was **refuted**: on a standard install the wrapper exits 0 and the repo's own entry-point test passes. Widening the probe also made its rejection path reachable, so both entry points now explain why a *present* bash was skipped.
+- **A "known local environment artifact" was a real missing guard (PR #405)**: the full suite's one failure had been recorded across more than one ship as this machine's WSL-stub quirk. `tests/ci/test_validator_worklog_family_skip.py` resolved bash with a bare `shutil.which("bash")` — no guard, no probe — and handed `deploy.sh` to the WSL placeholder. Inventory before fixing: of twelve bash-resolving test modules, **ten carried the WindowsApps guard and two did not**; both are fixed and the population is pinned by a new ratchet. **A recurring red labelled an environment artifact is a hypothesis, not a diagnosis.**
+- **Files that declared themselves user-local are no longer tracked (PR #408)**: `.claude/settings.local.json` plus two grandfathered `.guard_receipts/*.json` blobs. Adopters get the same fix — `deploy.sh` ships `.claude/settings.json` at scaffold tier, so every adopter inherited its user-local claim with none of the git behaviour behind it; the pattern lands in the managed downstream ignore block **and** the per-pattern `managed[]` map. `.guard_receipt.json` was deliberately left alone and routed to **#172**: both validators PASS on `-f` of that exact path, so untracking it alone would trade a real contradiction for a permanent cosmetic WARN. That row also records why its fix is blocked — ADR-002 Phase 3 waits on a Phase 2 step that `ship.md:208` now forbids, so the gate can never be met as written.
+- **The SSoT no longer carries a count that lives in another file (PR #406)**: `59 Pending as of 2026-08-09` against an actual 64. It went stale within three days and only an external audit caught it, because the validator checks the backlog *path* and never the prose number. Deleted rather than regenerated — the failure mode is removed, not monitored. An external reviewer's Codex Work Log, the last untracked copy of the only different-vendor review record of PR #401, was **archived rather than deleted** after it proved not to be the duplicate it appeared to be.
+- **`ship.md` stopped promising adopters a check they do not receive (PR #410)**: it told them a broken audit chain is "caught by `check_audit_chain.py`" and would fail their validator. That tool is not deployed and never has been, so downstream the chain is **write-only** — proven by simulation, not inferred. The prose is corrected; whether the checker should ship is ADR-003-adjacent and became **#173**, which also records the wider finding: the deployed validators reference 19 tools, 7 are absent, at least 4 deliberately, and no allowlist separates intent from oversight.
+- **Four corrections to this wave's own records (PR #409 and inline)**: an inventory figure counted *after* the first fix had landed and recorded as the pre-existing state; a compliance figure taken verbatim from a subagent report and written into the SSoT without re-derivation; a claim that a SKIP message's wording proved an omission was accidental (it does not discriminate — deliberate source-only tools print the same string); and a backlog row containing a literal `|` that shifted every column. Live surfaces are corrected in place per the PR #402 norm; the archived Work Log still carries the first figure and is deliberately untouched, because archived logs are immutable and that permanence is the point.
+
+**Downstream verified by simulation, not assumed.** A fresh deploy self-validates `pass=87 warn=1 fail=0 skip=6`; the governed loop runs (tools deployed and runnable, Work-Log lock acquires and releases, `guard_context_write` accepts a valid `expected-sha` and **rejects a stale one**); a deliberately un-indexed ADR is caught, so enforcement still bites. An upgrade deploy preserves downstream state: a target seeded at `Update Sequence: 47` with its own SSoT marker and Work Log kept all three, with zero upstream Ship History leakage. The managed ignore block round-trips without duplication across fresh install, re-deploy, and upgrade from a pre-#408 block.
+
+Downstream delta: adopters on a fresh `deploy.sh` get the launcher fix in both PowerShell entry points, the honest `ship.md` wording, and one new ignore default. `tests/` never ships, so the ratchet guarding the launcher fix is upstream-only. No new gates, no new flags, no engine change.
+
+## [1.8.20] - 2026-08-12
+
+A supply-chain control that did not hold, the false claim in the spec that hid it, and the oldest maintenance debt on the board. The header fix is small; the reason it took two independent reviews to get right is the interesting part.
+
+- **TruffleHog pinned by image digest (backlog #166, PR #402)**: `security.yml` pinned the *wrapper action* at a 40-hex SHA and a test machine-enforced that pin on AC-5's stated grounds — yet the step passed only `extra_args`, while the wrapper defaults `version` to `latest` and runs `docker run "${IMAGE}:${VERSION}"`. **The enforced control did not bind the artifact it was written to protect.** Evidenced on `main`: pre-bump run `31288803917` @ `44b2e33` loaded the old action and executed scanner **3.96.0** under a pin reading **v3.95.8**. Now `image` ends in `@sha256` and `version` carries the manifest digest, so the wrapper's own join composes a content-addressed reference — confirmed pulling in CI. The test asserts that composed *form*, i.e. immutability by construction. A first design pinning an exact release tag with a comment-equality guard was withdrawn before merge after review showed a tag is still mutable and a mutation swapping the wrapper SHA kept all 42 tests green.
+- **AC-3's "full-history scan" was false, and so was its source (PR #402)**: the wrapper has always run `--since-commit <base> --branch <head>`. The claim traced to a Domain Decision whose *rationale* was wrong when written — the `[spec-factual-claims]` Global Lesson, live. Correction method changed on review: false text is now **removed** from the live spec rather than struck through, because struck-through text still reads as live to grep and to any agent loading the file; superseded wording lives in the new `docs/architecture/ci-security.log.md`. Consequence now stated plainly: a credential introduced before the scanned range is not re-detected by CI.
+- **Dependency maintenance cleared (PRs #386, #377, #378)**: `trufflehog` 3.95.8→3.96.0, `actions/checkout` 7.0.0→7.0.1, `actions/setup-python` v6→**v7.0.0**. Open 8–15 days. Each merged only after a manual all-checks verification, because only three contexts are branch-protection-required and a green merge button does not mean a green run; the 3.9 floor was confirmed from `Framework Validation (Python 3.9)`'s own post-rebase log.
+- **Audit-wave leftovers (backlog #163+#164, PR #395)**: the `shared-contracts.md` exclusion from the lifecycle token instrument is now deliberate-and-documented with a size ratchet, after the true-multiplier fold was rejected on measurement (10,362 tokens against 771 headroom); `Path.write_text(newline=)` — 3.10+ against the 3.9 floor — fixed at the shipped tool site plus 18 accumulated test sites, pinned by a cap-at-zero AST ratchet.
+- **Records preserved (PRs #397, #399–#401, #403)**: the trigger-accuracy half of #254 split into a pickable row; an external reviewer's Codex Work Log archived into the tracked hash chain — it was this repo's only different-vendor review artifact and lived in a gitignored file on one machine.
+
+**Five defects filed, none fixed** (#167–#171): a diagnostic that mangles the filename it is reporting, a chain writer emitting CRLF on Windows, a disposition check that is fail-open against off-spec syntax, a personal email in five archived logs (owner decision), and a scanner false-positive class that **blocked this release's own security PR** — the name of the test enforcing the pin matched a credential pattern, and `--only-verified` did not bound it. #171 also records two facts established by experiment: the scan walks each commit's diff across the range rather than the net endpoint diff, and commit messages are in scope.
+
+**Governance note of record**: PR #402 was classified `quick-win` at 276 lines across four modules, against a hard block at 200 lines / 2 modules — which is what let its review gate be skipped. Caught by independent review, reclassified to `hotfix` through the documented rollback mechanism, with the retroactive sequencing recorded rather than presented as a clean run.
+
+Downstream delta: adopters on a fresh `deploy.sh` get the corrected spec text and the L2 log; `.github/workflows/` is not deployed, so the digest pin itself is upstream-only. No new gates, no new flags, no engine change.
+
+## [1.8.19] - 2026-08-08
+
+Task-simulation audit wave: governance adherence measured behaviorally instead of by reading rules — four baited fresh-context agent sessions plus validator probes, findings hardened by two refute-only passes and a cross-vendor external review, and every confirmed defect fixed same-day (PRs #387–#393).
+
+- **Behavioral audit method + findings (PR #387)**: `docs/reviews/2026-08-08-govern-audit-task-simulation.md` — bait tasks with zero governance hints probed bypass pressure, a test-pinned "cosmetic" edit, an injected external spec, and vague-scope drift. Verified-working at sonnet-tier: injection defense, the NOT READY reverse edge, tiny-fix exclusion salience. The leaks: *absent-signal* paths (two of three edit-sims skipped the Work Log layer entirely) and *present-but-unobserved-signal* (a sim quoted a validator run predating its own Work Log write; the true state was `fail=1`). None of the six findings survived the refute-only passes unmodified — the adjudication table is in the report.
+- **Verification look-timing + quick-win Work-Log reachability (backlog #158+#159, PR #388)**: `shared-contracts.md` §5-Gate now requires the run quoted as final evidence to postdate the last Work Log write, with exactly one terminal write recording that run's own outcome permitted (the recursion the external reviewer caught, fixed with an inline termination argument). The quick-win Work-Log requirement — previously stated only in a file the TOKEN LEAK BLOCK forbids quick-win agents from reading — now appears on the surfaces quick-win agents actually load (`bootstrap.md` quick-win line, `state_machine.md:59` with per-tier receipt sets), and `ship.md:64` was corrected **upward**: a missing required receipt is a validator FAIL, not the WARN the doc claimed. A "no-log WARN" detector was considered and blocked (classification lives inside the absent file — the #114 circularity).
+- **LF-stable governance writers (backlog #160, PR #389)**: `generate_compact_index.py` and four `append_lesson.py` sites wrote CRLF on Windows (`write_text` with no `newline=`); all now write LF on the 3.9 floor via `open(newline="\n")`, pinned by byte-level tests that assert freshly-emitted bytes into tmp paths (asserting on committed files is vacuous — git checks them out LF regardless). Honest blast radius: gitattributes filtered the CRLF at the commit boundary, so the harm was a phantom-dirty `git status` plus agent hand-fix effort.
+- **Lesson-chain tail integrity (backlog #162, PR #390)**: a format-mangled tail bullet was silently skipped by the strict chain parser, and the next append anchored past it — permanently cementing it outside the tamper-evidence net while unblocking appends the 20-cap should refuse (a close refuted by experiment, then reopened). Now fail-closed on both sides: `append_lesson.py` refuses on loose/strict count divergence; `check_lesson_chain.py` reports prefix-matching-but-unparseable bullets as a broken chain.
+- **Work-Log referent existence check (backlog #161, PR #391)**: new `check_worklog_references.py` (ADR-006 seam-only, source/CI-only) WARNs when an active log's `## External References` cites a spec/ADR path that does not exist — the probe that motivated it cited a nonexistent spec and PR and passed everything. The external review then found a fenced-decoy bypass in the first parser (reproduction showed it *worse* than reported: fenced examples were scanned as live rows); the parser is now fence-aware with regression tests.
+- **External-review loop of record**: the first different-vendor review signal a govern-audit here has had — 4 comments filed, 4/4 real, 0 hallucinated, catching what two same-vendor refute passes missed. Adjudications (including one corrected citation and one declined prescription, routed to #103(d)) are posted on the PRs.
+
+Known WARNs carried unchanged: the pre-existing historical trio (3 archived logs with historical gate gaps, 1 malformed archived receipt, 28 MUST-rule sections without eval cases). Open follow-ups: #163 (the lifecycle token instrument omits `shared-contracts.md`) and #164 (`write_text(newline=)` is 3.10+ against the 3.9 CI floor). Downstream delta: adopters get the corrected contract text, LF-stable writers, and the hardened lesson-chain tools; the references check is source/CI-only by the #137 precedent; no new gates, no new flags.
+
+## [1.8.18] - 2026-08-03
+
+Governance-correctness wave. Three defects in this release share one shape: a rule was written down, never executed, and would have failed the moment someone followed it. Each is now either executable or machine-checked.
+
+- **Skill runtime modernization (PR #379)**: 14/14 canonical Skill discovery, a fail-closed compatibility parser, canonical resolver parity, and byte-preserving multi-platform deployment contracts. Five scaffold `SKILL.md` files opened with an HTML comment instead of frontmatter, so native hosts saw only 9 of 14; `/app-init` no longer regenerates the broken shape. Post-merge adversarial remediation (`ef3390d`) then found that `Framework Validation` runs `validate.sh` with no `pip install`, so the dependency-free fallback in `check_skill_provenance.py` — not PyYAML — backs a FAIL-severity check; its plain-scalar rule now mirrors YAML's implicit resolver, verified both directions over a 41-block corpus.
+- **Spec Index collapse remedy made executable (PR #381, backlog #143 Increment A)**: `ship.md` §State Update told `/ship` to collapse over-cap Spec Index entries into a `## Spec Index Archive` section, but both validators read only the live index block — so following the instruction literally produced `[FAIL] SSoT Spec Index completeness` in **both** directions (fold-only → "not in index"; move-the-body → "phantom"). Verified never executed: `git log -S "## Spec Index Archive" -- current_state.md` returns 0 commits; the mechanism had been live in a workflow file for 3.7 months as a partial pre-implementation of a still-`draft` spec. Both validators now read live index ∪ archive section as one set, and spec bodies stay in `docs/specs/`. A refute-only review pass then found that folding *every* entry left the live index empty, still passed completeness, and permanently silenced the cap (`0/30`) — turning a `main` FAIL into a PASS. `ship.md`'s "keep the newest N inline" is now a machine-checked over-fold WARN in `check_ssot_caps.py` rather than trusted prose. **Net token-negative**: the bullet points at the tool instead of restating the config key and hand-count, which also resolved a `≥ cap` vs `> cap` mismatch between doc and checker.
+- **Six `/ship` rules restored to visibility (PR #383, backlog #152)**: `- **No-Python fallback**` sat at column 0 with six rules indented three spaces beneath it, making them markdown *children* of a condition most agents never hit — including "MUST add the completion record at the **top** of `## Ship History`" and its "do NOT use `--mode append`" warning, the rule this repo has already been bitten by. Whitespace only; `git diff -w` is empty.
+- **Absent work-log check family announced (PR #373, backlog #149)**: validators no longer stay silent about a check family that cannot run.
+- **Repo gotchas #14 + gotcha #3 archival trap (PRs #371, #376)**; **#78 re-parked after roundtable refutation (PR #369)**; **D-1 decision disposition repaired (PR #375)**.
+
+Known WARNs carried into this release, unchanged and pre-existing: 3 archived Work Logs with a ship receipt but missing plan/implement gates (historical), 1 archived receipt missing Verdict/Classification, and 28 MUST-rule sections without eval cases (tier-blind count, includes machine-enforced rules). None affects a downstream install; `validate.sh` reports `fail=0`.
+
+## [1.8.17] - 2026-07-26
+
+Self-audit wave: the repo's own traps written down where every agent can find them, locale-independent test decoding, and a governance-consistency pass whose main result was correcting the audit itself.
+
+- **Repo-gotchas surface (PR #364)**: `.agent/rules/repo-gotchas.md` — 13 incident-derived, repo-specific mechanical traps (README pinned in two layers, the three wiring points of a new validator check, gitignored work-log FAILs CI never sees, the real scope of the 355k ceiling, credential-scan flagging our own doc examples, CRLF row-merge on table deletes, non-required CI checks vs auto-merge, Windows `gh`/`git` multi-line bodies, compact-index staleness, the quick-win receipt chain, NOT-READY re-review ordering, release tag + `gh release`). Discovery rides on **one** `AGENTS.md §References` pointer that reaches all four platform entry points (CLAUDE/GEMINI via `@import`, Codex directly, Copilot by declared SoT); `tests/ci/test_repo_gotchas_discoverability.py` pins the pointer AND the three inheritance paths. Measurement of record: the 355k lifecycle ceiling does **not** include `AGENTS.md` or `CLAUDE.md` — a 400-char probe moved the aggregate by 0 tokens.
+- **Locale-independent subprocess decoding (backlog #146, PR #365)**: `subprocess.run(..., text=True)` without `encoding=` decodes with the system codec; on a non-UTF-8 Windows console one UTF-8 byte raised `UnicodeDecodeError` *inside* subprocess, returned `stdout`/`stderr` as `None`, and surfaced as `TypeError: ... 'NoneType' is not a container` — six tests red locally, green in CI on the identical commit. Scope set by AST, not by the issue text: **32 sites across 15 files**, including two downstream-shipped tools (`lint_spec_drift.py`, `verify_agent_evidence.py`) that decode git filenames inside `/plan` and `/review`. Durable half: `tests/ci/test_subprocess_encoding.py`, a cap-at-zero AST ratchet with its own anti-vacuity guards.
+- **Conflicting-directive scan (backlog #145, PR #367)**: the second audit axis — ADR-011 asked whether each directive is enforcement-backed; this asks whether directives contradict each other. **The headline result is a correction of the audit itself**: the first census claimed 11 conflicts, an adversarial roundtable refuted 9, and two proposed fixes would have been actively harmful (adding `## Security Findings` / `## Lessons` to the Work Log template each permanently satisfies a bare-grep presence check, silently killing a live WARN and a live guard). 8 findings shipped, 6 surfaced by the review rather than the sweep: the precedence clause **rescoped** (not extended — extending would demote the `.agent/rules/` Constitution); 5 `## Risks`→`## Known Risk` sites incl. a bare heading inside a fenced block; the redundant `AGENTS.md` Required-read removed from 23 of 30 command stubs; `§10.6`'s completion probes moved from presence to content (item 2 was already vacuous); `§10.2` annotates `spec`/`ADR`/`check Spec Index` as *(advisory, no gate receipt)*; `/bootstrap` added to the SSoT-write exception list; `handoff.md §6` gained a step 4. Durable half: `tests/ci/test_worklog_section_naming.py`, which reads fenced content. ADR-011 amended record-only with per-directive tiers; no directive deleted.
+- **Gotcha #13 refreshed (PR #366)**: PR #365 fixed the defect entry #13 described, so the entry was rewritten to keep the failure signature and the clean-worktree isolation technique while dropping the now-false claim and the closed-backlog pointer.
+
+Downstream delta: adopters get the gotchas file (core tier, upstream-maintained) and locale-safe governance tools; the `§10.2` annotation removes an ambiguity that has produced the same agent error in three separate sessions. No new gates, no new flags, no template change — both directive-count ratchets held **at** baseline without a baseline change.
+
+## [1.8.16] - 2026-07-22
+
+External-research wave + post-ship remediation: honest verdicts on reduced-assurance hosts, precise eval-coverage accounting, and interpreter discovery that survives the stock-Windows python3 stub.
+
+- **Reduced-assurance top-line labeling (backlog #113, PR #359)**: when python-dependent checks are skipped (`--no-python` / `-NoPython` / python unavailable) and FAIL==0, both validators now end with `Agentic OS integrity check passed (reduced assurance: python-dependent checks skipped)` instead of an unqualified pass; the unqualified line is reserved for full-assurance runs. Labeling only — exit codes and check semantics unchanged. 6 behavioral corpus tests pin it and document the honest cross-platform asymmetry (validate.ps1's native gate-progression parser FAILs a malformed log where validate.sh can only SKIP+label; count/heading equalization stays tracked as #136/#140). Companion records-only reconciliation: backlog #89 flipped Shipped — its enforcement had already landed 2026-07-17 via PR #345.
+- **Eval coverage matcher precision (backlog #107, PRs #358 + #362)**: `_run_coverage`'s protects-tag matcher tightened from bidirectional substring to exact-or-explicit-`/`-prefix (`_protects_matches_rule`), the `### §4.5` guardrails heading normalized to a single-`§` anchor, and a follow-up guard rejects malformed empty-`/`-suffix citations; 10 new tests across the two PRs. Disclosed + primary-verified along the way: 28 of 45 MUST-bearing sections carry zero guarding eval cases — routed to backlog #143 as a WARN-numbness problem (the drift IS surfaced as a tier-blind, never-blocking WARN), deliberately not silently backfilled.
+- **Python discovery by startability (backlog #144, PR #361)**: both validators selected interpreters by existence only (`command -v` / `Get-Command`); the stock-Windows WindowsApps `python3` App-Execution-Alias stub (present on PATH with no Python installed, exits 9009 when given args) would shadow a working `python` and turn every python-backed check into a spurious failure. Both validators now probe candidates with a silent `-c "import sys"` and fall through python3 → python; `--no-python`/`-NoPython` short-circuit unchanged; zero new native check sites (ADR-006 ratchet counts byte-held). Pre-existing defect surfaced by an external post-ship review — not a regression from this wave. 8 new PATH-shim tests (red 6-failed → green).
+- **Provenance + ledger (PRs #360 + #362)**: consolidated Ship History entries for the wave and its remediation (SSoT sequence 128→130); tracked verdict summary `docs/reviews/2026-07-22-external-research-verdict.md` gives fresh clones the external-research verdict's PARK/KILL/reopen constraints without the author's gitignored working note (#76 convention preserved); erratum of record for one archived delegate log's internally inconsistent Phase Sequence (archives are immutable — recorded, not rewritten); three delegate/wave Work Logs archived with hash-chained INDEX entries.
+
+Downstream delta: a no-Python adopter now sees an honest reduced-assurance verdict instead of a clean pass; a Windows adopter with the store stub + a real `python` gets a working validator instead of spurious failures; eval coverage counts stop lying. No new gates, no new flags, no new files deployed.
+
+## [1.8.15] - 2026-07-19
+
+Phase-entry directive honesty: every always-loaded rule now carries a verifiable enforcement tier — or an honest label that it has none.
+
+- **ADR-011 — enforcement-backed phase-entry surfaces (backlog #69, issue #176, PR #352)**: §13 ADD-Gate grandfathering ends for `AGENTS.md`, `engineering_guardrails.md`, `security_guardrails.md`, `shared-contracts.md`. A 112-row semantic census (`docs/reviews/2026-07-19-phase-entry-directive-enumeration.md`, point-in-time) tier-marks every directive — T1=39 (validator/test/hook, cited `file:line`), T2=21 (eval-backed), T3=0, NONE=52 retained under the new honest `keep-honest-unenforced` disposition instead of being deleted or given fabricated observers. **Clean deletions = 0** — the honest census result. Two false gate advertisements removed (§Shared Phase Contracts claimed a "Gate FAIL" no validator implements) and three duplicate directives merged (Runtime v1 #9/#10, guardrails §9.5); AGENTS.md net −200 chars; the ADR-008 safety fence stayed byte-identical. The issue's original "cut below ~85" goal was retired pre-freeze: the instruction-consistency threshold is a **150–200 range** and the max co-loaded set (~102) sits under it — count is a measured outcome, never a target.
+- **Directive-count ratchet** (`tests/ci/test_directive_count_ratchet.py` + committed baseline 37/84/6/4): cap-at-today — CI FAILs only when a phase-entry surface's hard-directive keyword count GROWS past its baseline; lowering is rewarded (baseline ratchets down). Mirrors the 355k token-ceiling pattern on a second axis (token volume ≠ directive density). Adversarial semantics pins document the deliberate limitations (lowercase/substring evasion — it targets drift, not adversaries).
+- **Eval integrity**: `chat-language-drift` protects-tag re-mapped to §Chat Language Policy (made MUST-bearing so the case binds its actual rule) — fixing a live section-granularity mismatch; a latent validator parity divergence (sh prefix vs ps1 exact heading match on archived-log `## Phase Summary`) was caught by CI's parity test, hotfixed, and tracked as backlog #140.
+- No engine, phase-order, or gate behavior change beyond the governance-text merges. Rollback = revert PR #352.
+- Hotfix (same-day, backlog #141): the first-ever `/retro` lesson archival created `archive/global-lessons-archive.md`, which the archived-worklog Phase-Summary audit scanned as if it were a Work Log — `test_171` enforces zero such WARNs, briefly reddening main after the release-cut merge; both validators now exclude `global-lessons-archive*` (sh+ps1 parity).
+
+## [1.8.14] - 2026-07-16
+
+Decision-capture wave: product decisions can no longer silently evaporate at ship.
+
+- **Decision Disposition at `/ship` (ship.md §State Update 2b, backlog #138, PR #349)**: every Work Log `## Decisions` entry is tagged before archival — `→ promoted: ADR-<id>` / `→ consolidated: L2 <domain>` / `→ local` — on all tiers except tiny-fix, with headless self-marking and a tripwire (`→ local` is illegal for entries naming an ADR or reversing a durable decision). `decide.md §5` rewritten to promise only what ship actually does (its "promote to ADR during /ship" was an untriggered orphan); the worklog template gains an optional `## Decisions` section; `bootstrap.md:143` gains a none-guard. Net always-loaded cost: ship.md **shrank 147 chars** — in-file prose compression funded the new step; the 355k lifecycle ceiling literal is unchanged.
+- **New WARN-tier check `check_decision_disposition.py`** (ADR-006 seam, sh+ps1 twin wiring, deployed downstream + manifest golden): **Signal A** flags post-cutoff archived logs with unmarked entries — the WARN names the legal remediation (archives are immutable; forward-fix via a new ADR/L2 entry, never a log edit) and states it is meant to persist after that fix; **Signal A2** flags ADR-naming `→ local` rubber-stamps for review. Date-grandfathered via `document_lifecycle.decision_disposition_since` (absent/empty = silent no-op); fenced examples ignored; ASCII `->` accepted (strict-emit `→`). 23 guard tests.
+- **Durable homes for orphaned decisions (backlog #139, PR #348)**: ADR-001 gained a record-only D2 amendment — the 2026-07-08 unanimous rejection of the `design_tool` capability-seam escape ("do NOT retry" absent a superseding ADR) — plus an always-loaded SSoT ADR-Index annotation and a `document-governance.log.md` entry batch (SSoT-caps rationale, point-in-time archival precedent). A read-path replay simulation confirmed the original drift scenario is now hard-stopped and rotation-proof.
+- Provenance: `docs/reviews/2026-07-16-govern-audit-decision-capture.md` (verified findings, dispositions, dropped false alarms). Verified by 第十人 + 事前驗屍 adversarial passes and a 4-scenario behavioral simulation wave (write-path, drift replay, violation loop, real downstream deploys ×4).
+
+Downstream delta: the check ships active-by-default at cutoff `2026-07-16` (advisory WARN only, never FAIL; forks that never use `## Decisions` see a single OK line; empty key = full opt-out).
+
+## [1.8.13] - 2026-07-15
+
+Validator correctness fix: the Spec Index reverse/phantom check is restored to working order.
+
+- **Spec Index phantom check un-blinded (`validate.sh` + `validate.ps1`)**: the "indexed spec path no longer on disk" reverse check extracted candidate paths with a bracket-anchored pattern (sh `sed 's/.*\] \([^ ]*\.md\) .*/\1/p'`, ps1 `\]\s+([\w./-]+\.md)\s`) that required a `]` *before* the `.md` path. But real Spec Index entries put the path *before* the `[Shipped]` tag (`- docs/specs/X.md — ..., [Shipped ...]`), so the pattern matched nothing and the reverse check was silently dead — a spec deleted from disk but left in the Index passed validation with a green `[PASS]`. Extraction is now anchored on the spec dirs (`docs/specs` | `.agentcortex/specs`), mirroring the already-correct ADR reverse check; sh and ps1 are fixed identically (parity). Surfaced by behavioral simulation, not by reading. 5 new regression tests (2 structural anti-regression + 3 behavioral: real-format deleted-spec → FAIL, real-format existing-spec → no false positive, sh/ps1 parity). Full CI-equivalent **720 passed**.
+
+No downstream ceremony change: the fix only makes an existing SSoT-integrity check do what it already advertised (zero new gates/phases/always-loaded rules).
+
+## [1.8.12] - 2026-07-11
+
+Governance-hardening release packaging the 2026-07-11 codex-audit remediation wave (PRs #337–#342). All 10 audit findings were independently verified real before remediation; the fixes tighten enforcement without adding gates, phases, or always-loaded rules (lifecycle token aggregate unchanged at 354,937).
+
+- **External executor safety (#339)**: `engineering_guardrails.md §8.2` (canon) + `/claude-cli` + `/codex-cli` now require a pre-flight worktree baseline (`git status --porcelain` + diff), stop-and-reconcile on abnormal exit (timeout / nonzero / kill) before any retry, never whole-file-revert a path that was dirty at baseline (the destructive `git checkout -- <file>` prescription is removed), and record `Requested Executor` vs `Actual Executor` — an explicitly requested executor that falls back must be disclosed. Enforced by 7 new docs-pin tests.
+- **Validator fail-open closure (#340)**: `check_command_sync.py` now validates each command stub's canonical dispatch directive line (a prose mention of the expected path no longer passes) and runs manifest-agnostically — deleting `.agentcortex-manifest` can no longer disable adapter-drift checks by faking source identity. New `check_routing_actions.py` (ADR-006 seam) structurally parses `routing_actions` blocks: inline-map records with invalid `target_doc`/`status` values are rejected; the native grep/sed block remains as the no-Python backstop (downstream promotion tracked as backlog #137).
+- **Receipt integrity (#341)**: both validators implement bootstrap.md's full 5-step canonical Work Log key normalization with case-insensitive comparison — an uppercase or punctuated branch can no longer demote current-branch Resume/Test-Gate FAILs to WARN. The WARN-tier receipt checks now value-validate Timestamp (ISO shape; order-of-appearance stays authoritative), receipt-vs-header Classification, and Checkpoint/Diff-Base SHA anchors (hex-or-placeholder + `git rev-parse` resolvability on the current-branch log only). Legacy archived logs keep WARN-tier treatment.
+- **Audit provenance + ledger (#337/#338/#342)**: the two codex audit reports are merged as review snapshots with all 10 `routing_actions` rows closed (`merged`), an L2 `document-governance` decision entry, backlog rows #136 (ps1 gate-progression FAIL double-count parity) and #137, removal of the vestigial unreferenced `.agents/workflows/` duplicates, and 5 hash-chained work-log archivals.
+
+No engine/test/logic change in the release cut itself.
+
+## [1.8.11] - 2026-07-10
+
+Patch release closing the v1.8.10 downstream gap found by the post-release fresh-adopter deploy simulation.
+
+- **Deploy whitelist fix (#334)**: `check_ssot_caps.py` was wired into both validators in v1.8.10 but missing from `deploy.sh`'s `runtime_tools` whitelist (array + dry-run mirror) and the deploy manifest golden — fresh downstream deploys reported `[SKIP] ssot section caps — tool not present`, so the cap advisory never activated downstream. Fresh deploys now ship the tool and report `[PASS] ssot section caps`.
+- **Session ledger closure (#333)**: the two remaining 2026-07-10 chore Work Logs (ship-wave consolidation, v1.8.10 release cut) archived with hash-chained INDEX entries.
+
+## [1.8.10] - 2026-07-10
+
+Packages the 2026-07-10 complaint-driven-audit wave: 10 Claude command stubs lose a contradictory required-read line, 7 doc-consistency defects are fixed across templates/zh-TW mirrors/registries, the Ship History/Spec Index caps become machine-checked instead of honor-system, and the backlog + ledger get their first live cap rotation (PRs #327–#331).
+
+- **Claude command-stub guardrails fix (#126, #327)**: removed the unconditional `.agent/rules/engineering_guardrails.md` "Required read before execution" line from 10 `.claude/commands` stubs where it contradicted CLAUDE.md step 4 / guardrails Quick-Skip Mode / bootstrap.md TOKEN LEAK BLOCK — closes the token-leak contradiction (`ask-local`'s §8.2 fallback citation kept; exclusion adjudicated correct).
+- **7 doc-consistency defects fixed (#329)**: the Work Log template was missing the validator-required `## Test Gate Results` section; two zh-TW gate-critical mirrors had drifted (`NONLINEAR_SCENARIOS.md` rollback rule, `CODEX_PLATFORM_GUIDE.md` gate-receipt-persistence section); `state_machine.md` carried a stale governance-escalation list (now a `§10.3` pointer); `AGENTS.md`'s quick-win state-transition clause was imprecise; `routing.md`'s skill index and command registry had gaps (12→14 skills + missing alias rows).
+- **SSoT caps machine-enforced (#127, #328)**: one-time Ship History archival (67→10 entries into `archive/ship-history-2026.md`) plus a new `check_ssot_caps.py` WARN-tier advisory wired into both validators, a `document_lifecycle.ship_history_max_entries: 10` config default, and a NOT-READY re-review remediation hint in both validators' gate parser — the rotation rule stops being honor-system.
+- **Backlog routing + evidence fold-ins (#330)**: new backlog rows #126–#135 from the audit wave, plus 7 evidence fold-in edits into pre-existing rows.
+- **Ship consolidation (#331)**: 6 stale Work Logs archived and the first live Ship History cap rotation exercised end-to-end.
+
+## [1.8.9] - 2026-07-08
+
+Day-1 friction fixes: a design-tool-less adopter can now plan UI work with a plain wireframe file, the Claude adapter stops forcing an extra turn, and the Global Lessons learning loop is unblocked (PRs #319, #321, #322, #119).
+
+- **Design Gate names a committed wireframe file as a valid artifact (#119)**: `engineering_guardrails.md §4.4` + the `/plan` Design Gate read as "paid DSoT tool required" (Stitch/Figma/Pencil), dead-ending solo / tool-less downstream adopters building UI. But §4.4 already accepted "a linkable artifact (URL **or file path**)" — a committed wireframe file always qualified; the wording just hid it. The DSoT definition and both stop messages now name a committed Markdown/ASCII wireframe file (`docs/design/<screen>.md`) as an equally valid artifact. The gate keeps its teeth: a UI task with *no* artifact still hard-stops at `/plan` — a framing fix, not an escape hatch. (A fuller capability-seam `design_tool` escape was designed, taken to a 5-agent roundtable + tenth-man review, and rejected — it would have reincarnated the ADR-001-rejected bypass flag and broken the capability seam's gate-safety invariant.)
+- **Claude adapter: same-turn continuation (#118, #321)**: `.claude/commands/bootstrap.md` no longer unconditionally stops after bootstrap when the user requested a downstream phase in the same message — it now honors AGENTS.md §3/§6, saving every Claude Code adopter an extra turn per task. Also `check_command_sync.py` accounts for all 30 command stubs (#116) and the orphaned `superpowers-playbook.md` was deleted (#95).
+- **Chain-aware Global Lessons archival (#117, #322)**: the Global Lessons registry hit its 20/20 cap behind an unexecutable archival procedure (the hash chain broke on any removal), freezing the learning loop. `append_lesson.py --archive` now moves an entry to the archive, re-anchors the chain successor, and records a `lesson_archive` bridge in the tamper-evident `INDEX.jsonl`; `check_lesson_chain.py` accepts only record-authorized bridges. `retro.md §3` rewritten to the executable procedure (#91).
+- **`/ask-local` discovery-surface sync (#319)**: the local-model delegation module is now enumerated consistently across the SSoT seed and both validators, with a gate-skip-misread guard.
+
+## [1.8.8] - 2026-07-04
+
+Local models get an official on-ramp: the governed flow can now delegate scoped work to an installer's locally-hosted model (PRs #316–#317).
+
+- **`/ask-local` — local-model delegation entry (#115, #316)**: new optional module driving any OpenAI-compatible local endpoint (Ollama / LM Studio / vLLM) as a **delegated junior executor**. Explicit opt-in only (never auto-triggers); silent fallback and zero cost when no endpoint exists; `review` (advisory second opinion) and `code` modes with a classification cap (architecture-change never delegated; hotfix review-only; feature as scoped sub-tasks under the primary's plan). The **patch contract** keeps Write Isolation structurally intact: the local model never writes files — it returns one fenced unified diff (or `FILE:` blocks); the primary reviews, applies with its own tools, and rejects the WHOLE patch on any scope violation (no cherry-picking). `engineering_guardrails.md §8.2` is reused unchanged — zero new gates or MUST rules; wiring is machine-enforced (command-sync + deploy-manifest golden). Verified by an independent fresh-context review (9/9 AC PROVEN, 6-vector red team), a fresh-adopter deploy simulation, a no-regression sweep, and a live fake-endpoint end-to-end simulation whose negative cases (endpoint down / prose response / out-of-scope patch with an injected backdoor) all held.
+- **`codex --oss` local variant (#316)**: `codex-cli.md §5a` documents Codex CLI's native local-Ollama path with the same governance wrapping and the same tightened caps.
+- **Validator: HANDEDOFF→IMPLEMENTING reverse edge (#317)**: `state_machine.md` has always allowed a ship-entry reversal back to implement ("ship Entry Condition fail; code change required"), but both validators' strict progression maps couldn't represent it — a feature log looping handoff→implement false-FAILed "illegal gate phase progression". Fixed (sh+ps1 parity) with 3 regression tests, including a negative control proving the stale-review guard (implement→ship without re-review) STAYS illegal. Found by dogfooding #316's own pre-merge quality loop.
+
+## [1.8.7] - 2026-07-02
+
+Governance self-audit wave: the framework audited itself (three waves, 12 subagents, every finding re-verified against the code before action), fixed what was real, encoded the method as a first-class workflow, and had its own ratchets catch four of the auditor's mistakes along the way (PRs #308-#312).
+
+- **`/govern-audit` — governance self-audit workflow (#104, #311)**: a report-only, gate-exempt workflow for auditing the governance system ITSELF (previously done by overloading `/audit`). Encodes the proven method: baseline-first dedup, findings-are-hypotheses (verify both cited sides before reporting), disposition funnel (do-now / backlog / close-with-reason — "deferred" prohibited), same-vendor external-signal caveat, scope-qualified snapshots + mandatory `routing_actions`. Gate-exempt but abuse-proof: an exhaustive permitted-writes list blocks SSoT/rule writes.
+- **Validator hardening (#308)**: D4 — `INDEX.jsonl` referenced-file existence WARN (the hash chain proved entries append-only but never checked the referenced artifact exists; it immediately surfaced a real dangling reference); D5 — a current-branch Work Log claiming pre-cutoff legacy status while missing gate evidence is denied the legacy WARN downgrade (FAIL-tier). sh+ps1 parity, ADR-006 baseline justification.
+- **Eval blast-radius coverage (#308)**: anchored eval cases for the two highest-blast-radius uncovered MUST rules — §10.5 Handoff/Ship Hard Gate and §11.1 SSoT Merge Protection (zero-coverage 30→28); drifted lifecycle-token test names fixed (backlog #94).
+- **Workflow-prose executability (#309)**: `/plan` no longer false-fires an unfreeze prompt on the task's OWN frozen spec (the canonical feature flow freezes before plan); `hotfix.md` gains its missing Ship step (names the 5 required receipts); `## Review Feedback` + `## Red Team Findings` added to the worklog template (demanded by 3 workflows, defined nowhere); `systematic-debugging` no longer lists `hotfix` (a classification) as a phase — and the validator's special-case carve-out for it is DELETED; a token-ceiling breach during this work was paid by deleting dead prose, not by raising the ceiling.
+- **CI docs-only gate hole closed (#112, #310)**: README/INSTALL/spec content-pin tests used to run only in `heavy`-gated jobs while docs paths classify inert — so they never ran on the docs-only PRs most likely to break them. A `docs_pin` marker + an ungated `docs-pins` job (runs in <1s exactly when the heavy suite is skipped) + lock tests. The audit-chain git append-only witness also gains real behavioral tests (append→PASS, tail-truncation→FAIL, published-edit→FAIL) — it previously had only source-substring checks.
+- **Windows lock fix (#312)**: `guard_context_write.py file_lock` now survives the Windows delete-pending window, where `os.open` on a lock file being unlinked raises `PermissionError` (not `FileExistsError`) — previously a crash, observed twice on hosted CI; deterministic regression tests included.
+- **Archival hygiene**: 28 shipped work logs that past `/ship` runs left uncommitted or unarchived are now properly archived with chain entries; the v1.8.6 dangling INDEX reference is healed by restoring the referenced artifact (the append-only chain itself was never touched).
+
+## [1.8.6] - 2026-06-30
+
+Development-flow hardening: 13 acceptance criteria across downstream-state isolation, gate/evidence honesty, CI/security enforcement truth, demonstration-over-green-gates, and developer-command hygiene (PRs #299–#304). Net effect: more governance MUSTs are now machine-enforced rather than self-reported. (v1.8.5 was cut and reverted for a capabilities CI regression; this release skips that number.)
+
+- **Downstream SSoT isolation + dry-run honesty (AC-1/AC-2, #299)**: deploy installs `.agentcortex/context/current_state.md` only from the template and fails closed if it is absent — the source repo's live SSoT is never shipped downstream; dry-run discloses the generated artifact.
+- **Gate/evidence honesty (AC-3/4/5/6, #300)**: `/ship` gate-receipt audit hard-fails on missing required receipts for feature/architecture-change; `Diff Base SHA` split from `Checkpoint SHA`; `verify_agent_evidence.py --strict` + honest 3-state wording; validator escalates current-branch Resume/Test-Gate gaps at handoff/ship to FAIL (historical stays WARN), sh/ps1 parity.
+- **Demonstration over green gates (AC-13, #301)**: user-facing-surface changes require an anchored demonstration — for deploy, a normalized manifest golden asserted against a CI re-run of real `deploy.sh`; honest-ceiling: non-executed surfaces (README render) stay advisory, no screenshot harness.
+- **CI/security enforcement truth (AC-7/8/9/12, #302)**: docs reconciled to the real required-check set; credential scan fails closed on scanner execution error; dependency audit now covers `.github/requirements-ci.txt` — which surfaced **CVE-2025-71176 in pytest 8.4.1**, fixed by bumping to pytest 9.0.3; the docs-only CI classifier no longer lets `.agentcortex/context/*` runtime state skip security-relevant jobs.
+- **Developer-command hygiene (AC-10/AC-11)**: bare `pytest` from repo root no longer dies on a gitignored cache demo (`norecursedirs` + rename + documented canonical command); `validate.ps1 --no-python` is a real alias of `-NoPython`.
+- Spec `docs/specs/dev-flow-hardening.md` finalized `draft → shipped` + indexed (#304).
+
+## [1.8.4] - 2026-06-28
+
+Patch release: **deploy data-loss fix** (confirmed live in v1.8.3).
+
+When deploy preserves a pre-existing scaffold/wrapper file that was absent from the old manifest, it recorded the *user's* hash as the baseline. The next deploy then treated the unchanged user bytes as framework-unmodified and could silently overwrite the user's customization. Fix: record the **upstream source hash** as the baseline at the two skip-preserve points, so future updates correctly detect the file as user-customized and preserve it (with a `.acx-incoming` sidecar).
+
+- `deploy.sh`: record `$src_hash` (upstream baseline), not `$dst_hash` (user hash), when skipping a preserved pre-existing file.
+- `tests/ci/test_deploy_tiering.py`: regression `test_preexisting_sidecar_file_stays_preserved_across_repeated_deploys` → suite **26 passed**.
+- Provenance: fix authored by Codex (cherry-picked from a deferred downstream-hotfix branch that was rolled back to CLASSIFIED for exceeding the hotfix size threshold; the eval/KB parts of that bundle shipped in v1.8.1, the deploy fixes did not). Necessity re-verified against v1.8.3. Follow-ons: §legacy poisoned-manifest migration → backlog; CP_FLAG core-backup → already shipped in main.
+
+## [1.8.3] - 2026-06-28
+
+Patch release: downstream-adaptability honesty + hardening notes (PR #293), from a read-only 3-axis adaptability diagnosis. **Engine behavior unchanged** — docs + one bootstrap default.
+
+- **`skill-ecosystem.md` status note**: the doc read like a shipped registry/trust-tier/discovery *platform*; added a "direction vs shipped" callout — shipped = `manifest.yaml` + `custom-*` + the ADR-007 declaration seam; roadmap = auto-discovery / registry resolution / capability sandbox. Reaffirms third-party skills are opt-in, never auto-activated (ADR-007).
+- **`docs/INSTALL.md` monorepo note**: "one deploy = one project root" — the framework deliberately doesn't partition shared SSoT across sub-packages (ADR-004/005). Sets adopter expectations.
+- **`bootstrap.md` Owner default**: derive `Owner` from `git config user.name` (fallback session-id) so the multi-person collision key stays consistent.
+- Backlog #98–101 (SSoT section-append, partial-adoption on-ramp) + report-trigger issues #291 (autopilot fan-out lock) / #292 (foreign-skill opt-in detector) tracked from the research; not built (no verified consumer — evidence-before-adding).
+
+## [1.8.2] - 2026-06-28
+
+Patch release: adoption + honesty. **Engine behavior unchanged** — docs/asset only.
+
+**Honesty**
+- **Hero-line accuracy** (README): the landing pitch no longer implies CI catches skipped reviews/phases. Scoped to reality — leaked secrets and a green check over zero tests fail git hooks + CI; a skipped review or phase shows up when the validator reads the work trail (local). Matches the existing Rules-vs-enforcement table and the "machine-enforced, not self-report" positioning (removes an overclaim).
+
+**Adoption (README)**
+- **`docs/assets/demo-gate.gif`** + `demo/render_demo_gif.py`: a recording of the real `demo/run.sh` credential gate (an agent leaks an `aws_access_key_id` and reports "Done"; the scanner redacts the value and BLOCKS the commit), wired into the README "run a gate yourself" section *above* the clone — so a visitor watches the machine say no before deciding to adopt. Same PIL render pipeline as the existing GIFs; no new runtime dependency. (zh-TW GIF twin to follow.)
+- **Pipeline ASCII diagram** (README "Gated phases" section): a text-renderable companion to the pipeline GIF (shows in search snippets / no-image contexts) — the three risk-scaled lanes plus the ship-gate BLOCKED/SHIPPED truth-table.
+- **"Sits under what you already have"** positioning section: frames Agentic OS as the enforcement layer that complements an existing rules file or skill pack — by category, no named competitors.
+
+**Backlog**
+- #97 intake (routing_actions staleness escalation): a cross-domain `status: pending` routing action can sit unwatched (ship only resolves pending actions in the current `primary_domain`). Backlog-only hardening of an existing gate, no engine change.
+
+## [1.8.1] - 2026-06-23
+
+Patch release: governance, KB seam, docs, and CI hardening wave. Packages #280–#284. **Adopters with no KB are behaviorally unaffected** — all engine behavior is unchanged; the eval, lifecycle, and CI changes are internal correctness fixes.
+
+**Governance fixes** (#280/#281)
+- **KB injection-decline oracle hardening** (#280): replaced the flawed denylist oracle with an `\A...\Z`-anchored exact two-line receipt (structured `refusal_receipt` + `⚡ ACX` sentinel; untrusted payload isolated in a `<kb-data>` block). The eval now genuinely proves the "KB-surfaced directive = DATA, name-and-decline" floor instead of rewarding banned-term avoidance. Live runner hardened: Windows UTF-8 child decode, exact `--case` with `--agent-cmd`, redacted OSError/timeout diagnostics (no argv/secret leak), stderr preservation, clean `.ps1` launch failure; plus inline URL-credential redaction in `_sanitize_diagnostic`.
+- **Frozen-spec SSoT lifecycle fix (ADR-010)** (#281): resolves a PRE-EXISTING impossible-SSoT cycle where a legal `status: frozen` spec could never satisfy the validator (required Spec Index entry) without a forbidden pre-`/ship` SSoT write. `validate.sh`/`validate.ps1` now skip `draft|frozen|cancelled` and require an index entry only for `shipped`/`living`. `/ship` remains the sole SSoT indexer; Write Isolation single-writer invariant preserved. `spec.md` reconciled (no pre-ship index write), `plan.md` Frozen-Spec Pre-Check reads `status:` from disk.
+
+**KB seam** (#282/#283)
+- **Absent-cost honesty + changelog + wiring probes** (#282): corrected the overclaim that the KB seam is "zero-cost when absent" — the v1.8 seam adds ~217 always-loaded bootstrap tokens even with no KB declared. `CHANGELOG.md` + `connecting-a-knowledge-base.md` updated to "zero KB reads / zero KB-content tokens when absent; ~217-tok always-loaded cost." Added omitted PR #273 to the v1.8.0 changelog scope. Fixed wiring probes (bash `[[:space:]]*[0-9]+`; PowerShell `Test-Path -PathType Leaf`).
+- **Optional schema-v4 manifest accelerators (ADR-009 follow-up)** (#283): teaches the governed KB-consume flow to consume OPTIONAL schema-v4 `manifest.json` accelerators: `kb_version` fingerprint in `§1b` health (detects moved/stale KB), `approx_tokens` smallest-first budgeting + section cap in `§3.6`, candidate-pool applicability pass (routed slugs → only applicable items block). `UNREADABLE` now explicitly covers malformed/unparseable (fail-closed). Deleted dead `kb_path_env` config. New adopter-guide section covers optional field shapes + BYO no-manifest fallback + privacy reminder. Graceful for absent/BYO-no-manifest; no hard schema-v4 dependency.
+
+**CI** (#284)
+- **Windows pytest sharding** (#284): the slow non-required `Pytest (Windows)` job (~8:26) is sharded across 3 parallel matrix runners via `pytest-split` (pinned `0.11.0`). Wall-clock 8:26 → 7:14 with count-split; a `.test_durations` file would balance further. `pytest-xdist` was measured slower for this suite. Zero downstream impact (deploy ships no `.github/workflows/` or `tests/`). Not promoted to required.
+
+## [1.8.0] - 2026-06-21
+
+Minor release: a hardening + dogfood wave for the v1.7.0 ADR-009 knowledge-base seam, plus a capabilities-validator BOM fix. Packages #273–#276. **Adopters with no KB read no KB and ingest zero KB-content tokens** — the seam stays present-but-inert (behavior unchanged). Note: this is "zero KB reads / zero KB-content tokens when absent," not byte-identical — the seam's bootstrap guidance is a small fixed always-loaded cost (~217 tokens) even with no KB declared.
+
+**Governance / downstream adaptability** (#273/#275/#276 — ADR-009 follow-up, `docs/specs/kb-seam-hardening.md`)
+- **Capabilities-validator BOM tolerance** (#273): `validate_downstream_capabilities.py` now reads with `utf-8-sig`, so a `downstream-capabilities.yaml` saved with a leading UTF-8 BOM (older Windows editors) no longer fails with a cryptic `unknown top-level key`. Fail-closed posture unchanged — a BOM-prefixed `role: authority` gate-relaxation is still rejected.
+- **`${ACX_KB_PATH}` env resolution** (#275): a `knowledge_sources[].path` containing `${ACX_KB_PATH}` resolves against the env var (clone root; `entrypoint` relative) so one machine relocates a shared KB clone without per-project edits. Present-only (read only when a block is present), literal paths unchanged, cross-platform, no-Python safe. A committed `.agentcortex/templates/downstream-capabilities.example.yaml` demonstrates it (the strict validator accepts only full-line comments + quoted `:`/`${}` paths — now documented, closing a pre-existing copy-paste footgun).
+- **Path trust model, no guard** (#275): the KB path is documented as self-authored / out-of-repo / OFF the trust boundary, consumed fail-closed as DATA; **no `..`/containment guard is added** — it would only ever fire on the legitimate out-of-repo KB, and the path is not attacker-influenced. `validate_downstream_capabilities.py` stays schema-gate-safety-only (never resolves the path; CI-deterministic).
+- **Surgical-read discipline at the line-of-action** (#276): the `bootstrap.md §3.6 kb-consult` row now carries the mechanic the agent acts on — query `task_routing` (never Read the whole ~25–53K-tok manifest), read the routed page's checklist *section* not the whole page, ≤3 pages/phase. A real **dogfood** proved the gap (the agent over-routed 4 pages = 36K tok vs a 495-tok surgical consult = ~17× cheaper). **Per-entry KB health**: `§1b` records `knowledge_sources: <id>→OK|UNREADABLE` so a moved/dead KB is visible each bootstrap; a no-Python one-liner verifies wiring on demand.
+- **Injection-decline eval** (#275): one LLM-in-loop governance-eval case asserts a directive embedded in a KB page is named-and-declined (the `§Untrusted Tool Output` floor on KB-surfaced data). Consult-quality stays honor-system — labeled, raised-probability-not-enforced.
+
+**Docs / adoption** (#274)
+- **README discoverability**: the `knowledge_sources` KB seam now surfaces in the README `## Docs` table (EN + 繁中), linking the adopter guide — previously reachable only via `INSTALL.md`.
+
+**Housekeeping**
+- Lifecycle token budget bumped 352k→353k for the matured seam (the §3.6 rule is net-token-saving — it prevents 36K-tok over-routes) and re-baselined. A roundtable + Tenth-Man pass deliberately **deferred** a `kb_doctor` tool and **cut** a resolver / fixture-pytest / path-guard (vacuous-green or security-theater given consumption is agent-prose-driven).
+
+## [1.7.0] - 2026-06-20
+
+Minor release: a present-only knowledge-base consumption seam (ADR-009) plus skill-provenance, a research-persistence convention, and a proof-first README/docs overhaul aimed at adoption. Packages the since-v1.6.0 merges (#258–#271, #86).
+
+**Governance / downstream adaptability** (#270/#271 — ADR-009)
+- **Knowledge-Source Consumption Seam**: a present-only, OPTIONAL `knowledge_sources:` block extending ADR-007's `downstream-capabilities.yaml` lets the governed flow CONSUME (read-only) an external markdown knowledge-base to enrich `/plan` + `/review`. **Absent → zero reads, zero tokens, byte-identical behavior** (the no-KB path most adopters are on). KB content is treated as DATA under `AGENTS.md §Untrusted Tool Output` (never loaded as governance); the manifest is a hint, the page is authority; `role` is fixed to `advisory` and `manifest_trusted` defaults `false`. The validator (`validate_downstream_capabilities.py`) accepts the block under a strict allowlist sub-schema — gate-relaxation stays structurally unrepresentable (rejected whole-file, never clamped) — and `validate.sh`/`.ps1` gained an AC-7 check that the seam's `§1b` loader + `§3.6 kb-consult` row stay shipped. Stage-1 only; cross-phase auto-consult and any agentic-os→KB auto-backfill were rejected (cross-repo write = poisoning). Downstream guide: `connecting-a-knowledge-base.md` (now linked from `INSTALL.md`).
+
+**Governance / skills** (#258, #259)
+- **Skill provenance + compatibility floor** (#259): a source-repo-only validator (`check_skill_provenance.py`) asserts every `.agents/skills/*/SKILL.md` declares `name`+`description` (name==dir) and that a static `skill-provenance.yaml` manifest (origin/source/license, fail-closed allowlist) stays complete — no orphans/dupes.
+- **Research persist-before-browse** (#258): `/research` writes its source list + bounded notes to a gitignored `research-<topic>.md` before the first external browse; `/bootstrap §3` auto-surfaces them so a new session resumes prior research without a human remembering it exists.
+
+**Docs / adoption** (#260–#263, #266, #267, #269)
+- **Proof-first README overhaul**: rebuilt the public README from a 506-line spec-dump into a lean, visual-first landing page (concept hero + workflow/pipeline GIFs, EN + 繁中) with a reproducible `demo/run.sh` exercising the real credential gate; feature/command/architecture detail relocated to new `docs/reference.md` + `docs/INSTALL.md`. Honest framing throughout (guidance vs. enforced controls; no "can't lie").
+- **CI-onboarding** (#263): `docs/INSTALL.md` shows adopters how to wire the deployed validator + credential scan as a required status check. **Copilot entry parity** (#264): `deploy.sh` now ships `.github/copilot-instructions.md` downstream. **CLAUDE platform guide** gained a 繁中 twin (#269). **Worktree safety checks** added (nesting + gitignored-target detection, #267).
+
+**Fixes / housekeeping**
+- Ship-History ordering doc corrected to prepend newest-first (#265); README de-dup (#86); backlog handoff + ship bookkeeping (#268).
+
+## [1.6.0] - 2026-06-15
+
+Minor release: an upfront plan-time change-sizing advisory plus a security fix closing an ADR-007 capability-gate fail-open, packaging the since-v1.5.4 merges. PRs #241 (#145), #244, plus backlog / work-log hygiene (#240/#242/#243/#245/#246/#247).
+
+**Governance** (#241 — issue #145)
+- **Upfront change-sizing advisory**: a single advisory trigger added to `/plan`'s existing Pre-Plan Advisory block citing `engineering_guardrails.md §10.1`, front-running the previously *reactive* implement-time blast-radius / frozen-tier catch — no copied thresholds, no new MUST/gate. Closes the lone residual of the Change Sizing issue (#145).
+- Enforce the downstream capability load-policy ceiling (`fix`).
+
+**Security** (#244)
+- **ADR-007 capability-gate fail-open closed**: `downstream-capabilities.yaml` is now read by a strict, fail-closed mini-parser instead of the lenient shared YAML path, so a malformed or hostile capability file can no longer silently relax gates.
+
+**Housekeeping**
+- v1.5.4 release-ledger backfill (#240); backlog archival + redundant-row cancellation (#242/#243); bulk archival of previously-shipped and catch-all work logs (#245/#246/#247) + an archived gate-receipt schema fix.
+
+## [1.5.4] - 2026-06-14
+
+Patch release: downstream adaptability for heterogeneous flows/architectures (many custom skills, harness/subagent fan-out, other work-management flows), plus the cross-contributor credential CI hardening and a security-policy refresh. PRs #238 (ADR-007/008), #236 (#73/#74/#75), #237.
+
+**Governance / downstream adaptability** (#238 — ADR-007 + ADR-008)
+- **Downstream Capability Declaration Seam** (ADR-007): a present-only, opt-in, gate-capped `downstream-capabilities.yaml` (loaded at bootstrap §1b) lets a downstream register `custom-*` skills into auto-activation, declare a `subagent_policy`, and declare advisory `trackers`. Gate-relaxation is **structurally unrepresentable** — a denylist + allowlist schema validator (`validate_downstream_capabilities.py`) rejects, never clamps. Absent file = zero behavior change; the same-owner lock short-circuit was deferred as a Non-goal (`recover_worklog_lock.py` untouched).
+- **Portable Safety Floor** (ADR-008): the three always-loaded `AGENTS.md` safety invariants are fenced into a committed generated `.agentcortex/AGENTS.safety.md` nucleus (+ a validator freshness check) that any non-shim harness (Codex/Gemini/custom) can inject into every dispatched subagent. A **no-Python credential floor** (`credential_floor.sh`/`.ps1` — narrow FP-free AKIA/PEM/`ghp_` subset, redacted) is wired into the pre-commit hook so the "block secrets before object history" control works without Python; `scan_credentials.py` — previously absent from the deploy whitelist, a dead control downstream — is added as the richer python path.
+- Reviewed by 4 independent fresh-context agents (initial NOT READY → 4 fixes: dead `FAIL` arg → WARN honesty, denylist → allowlist, stale SSoT summaries, docstring → PASS). 30 new tests; full fast suite 307 passed; validators sh↔ps1 parity; ratchet 194/195. All additive + present-only.
+
+**Security / CI** (#236 — #73/#74/#75; #237)
+- **CI PR-diff credential scan** (#73): `scan_credentials.py --range base...head` in a `pull_request` job so contributors who never install the opt-in hook still get pre-merge secret protection (complements TruffleHog `--only-verified`), with a `# pragma: allowlist secret` escape + zero-sha/exit-3 fail-safe.
+- ShellCheck now lints `.githooks/*.sample` (#74); the opt-in hook's gitignored worklog-count check is WARN, not a hard FAIL that blocked every commit (#75).
+- `SECURITY.md` supported-versions refreshed to 1.5.x (#237); TruffleHog action bumped 3.95.3 → 3.95.5 (#174).
+
+## [1.5.3] - 2026-06-13
+
+Patch release: two additive governance/security guards (zero always-loaded prompt cost) plus CI and discoverability improvements. PRs #233 (issue #157), #234 (issue #225), #230, #231.
+
+**Governance / CI**
+- **Token-lifecycle baseline + drift detector** (#157): `update_lifecycle_baseline.py` stores a per-scenario governance token-cost baseline around the existing `analyze_token_lifecycle.py`, with a `--dry-run` drift check — growth beyond a 10% slack is flagged (advisory WARN in `validate.sh`/`.ps1`, hard teeth in a pytest ratchet); shrink is never punished. Catches slow per-PR governance-token creep that no existing test covered. ADR-006 native-baseline bumped with justification.
+- **Pre-commit credential scanner** (#225): `scan_credentials.py` flags distinctive-prefix credential shapes (AWS AKIA, PEM key headers, GitHub `ghp_`/`github_pat_`, OpenAI `sk-`, Slack `xox`, Google `AIza`) on the staged diff with redacted output, wired into the opt-in `.githooks` pre-commit hook (blocks on match, warns+continues on a git error). Honest framing: opt-in + `--no-verify`-bypassable, so CI TruffleHog remains the enforced control. A 4-expert review + dev-flow simulation hardened it — precise-only patterns (zero false positives on real code) and a hunk-context diff parser that closed a secret-dropping false negative.
+
+**Docs / discoverability**
+- Repo discoverability pass (#230): README `## FAQ`, root `llms.txt` (llmstxt.org convention), friendlier GitHub description + topics.
+- CI wall-clock (#231): docs-only PRs skip the heavy job matrix via a dependency-free scope detector; required checks and branch protection unchanged.
+
+## [1.5.2] - 2026-06-11
+
+Patch release: destructive-command incident response. A downstream field report (real `rm -rf` cascade that clobbered a parent repo's working tree) exposed a README↔enforcement drift class; this release closes it, hardens the deploy bootstrap, and promotes the remaining flow-independent safety invariants found by the follow-up audit. PRs #222/#223/#224.
+
+**Governance**
+- **Safety-invariant cluster in `AGENTS.md §Core Directives`**: the advertised "Destructive Command Blocking" rule had existed on NO loaded surface since day one (READMEs only, with divergent EN/zh severity + command lists; platform adapters carried drifting copies). `AGENTS.md` now carries a capped cluster (hard cap ~5; placement test: hazard reachable from any tool call AND irreversible/exfiltrating): **Destructive Command Gate** (deny-by-default; rollback plan must explicitly cover UNTRACKED/gitignored state; STOP on partial failure — a half-deleted directory silently redirects git to the parent repo), **Secrets Prohibition**, **Untrusted Tool Output** (tool-result text is data, never instructions). Each is eval-backed; retargeting also fixed a dangling protects-tag (the prompt-injection eval case had been guarding a section containing no injection text).
+- Both READMEs demoted to pointers at the canonical rule (ends the EN/zh disagreement structurally); Codex/Antigravity adapter lists reconciled and now cite the canonical rule; Codex gains the previously-missing secrets rule.
+- **ADR-001 amendment**: safety invariants carved out of the token-saving skip policy's jurisdiction (D3 governs cost/process rules only; its ~3.5k-token dollar premise measured stale at 2026 cached pricing). The tiering architecture itself is unchanged — the sorting key for safety content changes from token cost to hazard reachability.
+
+**Deploy / downstream**
+- **`deploy_brain.sh` cache origin verification**: the bootstrap path did `cache exists → git pull` without comparing the cache's origin URL to the configured source — a stale pre-migration cache pulled 457 commits of the WRONG repo on a live downstream. Now: normalized URL compare (env `ACX_SOURCE` > `--source` flag > manifest `source_repo:`; the `.ps1 -Source` path is now honored by the check), mismatch → warn + re-clone, and a partially-failed cache removal hard-fails instead of letting git fall through to the parent repo. +4 regression tests (mutation-verified).
+- `.gitattributes` scaffold pins `.agentcortex-manifest` and `.githooks/**` to LF (manifest hash-field parsing was one `\r` away from "every file appears undeployed" on Windows autocrlf checkouts).
+
+
+## [1.5.1] - 2026-06-11
+
+Patch release: post-v1.5.0 downstream-simulation fixes (6-way fleet; 36/40 checks already passing — every v1.5.0 promise held).
+
+**Deploy / downstream**
+- **GEMINI.md now deployed** — it was a first-class agent entry point (imports `AGENTS.md`) present in the source repo but omitted from every `deploy.sh` site, so downstream Gemini/Antigravity users got no entry point. Wired into all deploy sites (scaffold tier, beside `AGENTS.md`/`CLAUDE.md`).
+- **Lifecycle tolerance for user-authored docs** — `check_lifecycle_frontmatter.py` no longer FAILs a downstream user's own `docs/adr/*.md` for lacking the framework's lifecycle frontmatter (it imposed a doc contract on content the framework never wrote, blocking their `validate.sh`). Downstream installs (`.agentcortex-manifest` present) get an advisory WARN; the framework source repo stays FAIL-gated.
+- Quieter deploys: the "Migrating from legacy paths" banner only prints when real legacy artifacts exist, not on every routine re-deploy.
+
+**Validators**
+- `validate.sh` gate-receipt greps made case-insensitive to match the PowerShell mirror (eliminates a 2-count sh/ps1 parity drift); aggregated local-skill note deduped.
+
+
+## [1.5.0] - 2026-06-11
+
+Hardening release: a P1 governance sprint (locks, behavioral evals, anti-bloat norms), a validator architecture decision, and major deploy/CI performance and downstream-tolerance fixes. 10 PRs (#209-#218); all gates, reviews, and cross-platform CI enforced throughout.
+
+**Governance**
+- **Blocking Work Log lock (#147)**: the per-branch `<worklog-key>.lock.json` graduates from advisory to single-writer blocking (`worklog_lock.mode: blocking`, configurable back to `advisory`). Atomic acquisition (`O_CREAT|O_EXCL`; racing recoverers serialize), new `release` / `ensure --takeover` verbs (takeover requires an audited Drift Log line), a Phase-Entry Lock contract in `shared-contracts.md`, and validator WARNs for non-stale owner/phase mismatches. Review caught and closed a real injection vector: lock `owner`/`session` strings can no longer forge Work Log gate receipts via any line-break encoding (full `str.splitlines()` set sanitized).
+- **Governance behavioral eval harness + DELETE-bias diff (#151)**: data-only adversarial case set (`.agentcortex/eval/governance.yaml`, 23 cases) + stdlib runner (`run_governance_eval.py`) scoring transcripts or a live `--agent-cmd`; `--coverage` maps MUST-rule sections to guarding cases (honest tier-blind wording; inventory parent double-count fixed); `run_delete_bias_diff.sh` proves whether a rule is load-bearing before deletion. Validators surface coverage as an advisory WARN.
+- **Deletion-First Norm + ADD-Gate (#166)**: new conditional guardrails §13 — changes to always-loaded surfaces must cite a deletion or justify the net-add; new imperative rules declare a signal tier (machine-enforced / eval-backed / named observer). Shipped with net −5 always-loaded lines (the cure passes its own constraint) and a quick-win reachability hook so the norm is loadable on the most common governance-edit flow.
+- **ADR-006 — validator Python-core strangler**: all NEW validator checks are Python tools behind the existing `run_python_check`/`Invoke-PythonCheck` twin wrappers; native additions only via a justified, diff-visible baseline bump (Zero-Python-downstream doctrine honored). Enforced by a bidirectional ratchet test (baseline 187/188 frozen; growth and stale-shrink both fail). Zero runtime change at adoption.
+- Ledger hygiene: Ship History 10-entry rotation enforced (37 accumulated entries rotated out; SSoT halved to ~170 lines), backlog↔tracker resync (5 suspected drifts confirmed as by-design future-direction rows; legend note added).
+
+**Deploy / downstream**
+- **EOL-normalized manifest hashing**: CRLF-checked-out but unmodified files no longer misclassify as "locally modified" — framework updates land instead of silently sidecar-ing (evidenced on a live downstream at v1.2.0). `.gitattributes` now pins `*.md`/`*.yaml`/`*.yml` to LF.
+- **Stale-skill detection with manifest proof**: retired framework skills are named loudly on deploy; user-created non-`custom-*` skills get a single gentle aggregated note (never "retired upstream"/"delete it"); `custom-*` stays silent; flat-skill lookup is exact-match.
+- **Order-paired batch hashing**: deploy update runs drop from ~72s to ~7.5s on Windows (one single-process hash pass; path strings never cross the bash↔python boundary, eliminating an entire key-corruption bug class). bash<4.3 / `ACX_FORCE_PERFILE=1` / no-python paths preserved.
+
+**CI / tests**
+- `.agentcortex/tests` (177 tests) now CI-gated on Linux AND a new Windows pytest job — which caught a real 8.3-short-path bug in `trigger_runtime_core` on day one (fixed with forced-short-path regression tests). UTF-8 file-validity sweep + critical-file presence pre-check added; `verify_agent_evidence`-on-PR was dropped as vacuous (no review-mirror producer) rather than wired as theatre.
+- `slow` pytest markers: local fast loop 17 min → ~3.5 min (CI selection unchanged, full suite still runs); Windows CI pytest job ~15 min → ~8 min after the deploy speedup.
+
+**Process**
+- New discipline applied throughout and recorded: expert attribution review after confirming a fix target and before modifying — it reclassified five suspected drifts as deliberate design, corrected a false performance rationale in ADR-006's history, and sent two delegated "success" claims back for owner-environment reproduction.
+
+
+## [1.4.1] - 2026-06-08
+
+Patch release: chat-language adherence fix plus a CI time-bomb test fix.
+
+**Governance**
+- **Chat-language policy hardening (#206)**: agents now reliably reply in the user's input language instead of defaulting to English (worst on Claude) or drifting to Korean/Japanese. Root cause was output-layer enforcement asymmetry — the every-turn English `⚡ ACX` sentinel and gate/phase templates drowned a single un-reinforced two-language line — compounded by an Antigravity-only "default Traditional Chinese" rule that contradicted `AGENTS.md`. The `AGENTS.md` policy is now universal-language (arrows are examples, not an allowlist) with explicit anti-drift (including "never collapse a non-English input into English"), a live-chat-vs-artifact carve-out, and a deterministic English fallback; the language requirement now rides the always-reinforced sentinel rule; `.antigravity/rules.md` inherits the canonical policy instead of overriding it.
+
+**Tests**
+- Fixed a time-bomb in `tests/guard/test_worklog_lock_recovery.py::test_active_lock_preserved_by_api_and_cli`: it anchored a lock's `updated_at` to a frozen timestamp while the CLI subprocess evaluates staleness against the real clock, so the test went red ~60 minutes past its hardcoded time on any later run. The lock is now anchored to the real current time, isolating the test to live-owner preservation.
+
+## [1.4.0] - 2026-06-08
+
+Release covering work merged since the v1.3.0 tag. Adds local validation tooling, work-log lock resilience, advisory governance linters, and multi-agent review guidance; hardens cross-platform deploy/validation; and polishes the public README.
+
+**Features**
+- **Opt-in pre-commit local validation hook (#192)**: a bundled `.githooks/pre-commit.guard-ssot.sample` runs Agentic OS validation before each commit (PowerShell-aware on Windows, falls back to `validate.sh`). Validator failures block the commit; guarded SSoT receipt warnings stay advisory.
+- **Work Log lock auto-recovery (#188)**: stale `<worklog-key>.lock.json` advisory locks are recovered automatically instead of hard-blocking, while genuinely active CLI-created locks are preserved.
+- **Advisory spec drift linter (#156)**: flags acceptance-criteria coverage gaps between a spec and the staged git diff (advisory, non-blocking).
+- **Multi-agent review guidelines + contributor adapters (#162)**: shared review guidance that maps back to canonical rules instead of duplicating them.
+
+**Validator & deploy hardening**
+- Deploy now backs up and warns on locally-modified core-file overwrite instead of silently clobbering; `sha256` comparison hardened for Windows/Git-Bash backslash paths (#173).
+- `validate.sh` uses POSIX `[[:space:]]` instead of GNU-only `\s` for portability (#190); PowerShell validator parity gaps closed; flaky SIGPIPE in `cs_content` index parsing eliminated (#182).
+
+**Governance**
+- `CLAUDE.md` / `GEMINI.md` added to the tiny-fix exclusion set with a 4-way drift guard; the Claude/Gemini startup line reframed as an intent-first pointer.
+
+**Docs**
+- README v1.4.0 polish: fixed the broken top version badge (the shields.io URL had an unencoded space in `Agentic OS`, which returned HTTP 000 on GitHub) and converted the ASCII "The Solution" hero diagram to a mermaid flowchart with explicit `FAIL → STOP` branches. Version banners bumped to v1.4.0 across `README.md`, `docs/README_zh-TW.md`, `CITATION.cff`, the Model Selection Guide (EN + zh-TW), the Testing Protocol (EN + zh-TW), `deploy.sh` (`ACX_VERSION`), and the Antigravity runtime guide. Measurement-tied banners (`LIFECYCLE_BENCHMARK`, dated to the 2026-05-31 snapshot) were intentionally left unchanged.
+
+## [1.3.0] - 2026-06-03
+
+Consolidated release covering PRs #124–#177 since v1.2.0. Activates the downstream override layer, adds a merge-conflict-marker validator gate, brings the sh/ps1 validators to full count parity, expands governance contract tests, and polishes the public-facing docs.
+
+**Features**
+- **Downstream override layer activated + skill-sidecar tiering (#175)**: per-fork/per-user `AGENTS.override.md` is now loaded present-only at session start (MAY narrow/disable directives but cannot relax delivery gates), and `deploy` preserves locally-modified framework skills as visible `.acx-incoming` sidecars instead of overwriting them.
+- **Merge-conflict-marker gate (#131)**: `validate.sh` / `validate.ps1` now FAIL on unresolved `<<<<<<<` / `=======` / `>>>>>>>` markers in tracked files.
+
+**Validator & tooling**
+- sh↔ps1 full count parity: closed parity gaps F2 + F4, gated the ps1 count-parity test to Windows, aligned `validate.sh` column indices, and removed the em-dash pre-filter (#133).
+- Cleared 3 framework-self false-positive WARNs (#170, #171, #172); adopted code-review findings with stronger fixes plus regression tests.
+
+**Governance & tests**
+- State-machine transition-graph contract test (#132); classification-escalation + SSoT-heartbeat contract tests (#16).
+- `CITATION.cff` correctness + skill count corrected 17→14 (#124); untracked a leaked work log and advanced the SSoT sequence (#125).
+
+**Downstream & Windows**
+- Hardened deploy + validation follow-ups for Windows; regenerated the AGENTS.md trigger-compact-index for content-hash drift; tightened downstream ADR tiering coverage; corrected ship-evidence SSoT root-cause notes.
+
+**CI**
+- Pinned test deps + pip cache + UTF-8 + branch-scoped concurrency (#163, #177); dropped the unsupported Dependabot pip ecosystem entry (#163 follow-up).
+
+**Docs**
+- **README de-slop (EN + zh-TW)**: removed AI-generated tonal artifacts so the project face reads as a genuine, professional share rather than a product launch page. Dropped the triple-slogan line, per-section header emoji, and the "demand discipline" footer in `README.md`; softened the buzzword-heavy opening ("頂尖開發者 / 高效能 / 結構化認知框架") and removed section-header emoji in `docs/README_zh-TW.md`. Aligned the top tagline ("operating system" → "layer") with the humbler open-source footer, and brought the zh-TW anti-drift bullets back to plain register for EN/zh parity. Trimmed the redundant "Ready/Compatible" marketing badges (platform support is already in the Platform Compatibility table). No content, tables, diagrams, or install steps were removed.
+- Self-regenerating benchmark token snapshot + deleted-skill-ref fixes + zh-TW parity (#126–#130); documentation navigation map; refreshed stale platform/skill references; clarified the Windows Git Bash requirement; backlog issue-sync + archival (#8, #139, #165); Codex contributor attribution; QRSPI research notes (backlog #69).
+- Version banners bumped to v1.3.0 across `README.md`, `docs/README_zh-TW.md`, `CITATION.cff`, the Model Selection Guide, and the Testing Protocol (EN + zh-TW). Validator encoding-canary phrases repointed (sh + ps1) to match the de-slopped READMEs. Measurement-tied banners (`LIFECYCLE_BENCHMARK`, dated to the 2026-05-31 snapshot) and illustrative example text were intentionally left unchanged.
+- Fixed stale internal citations in live files surfaced by a doc-accuracy audit: `engineering_guardrails.md` (`bootstrap.md §7` → `§1 Classification Tiers`), `.agent/config.yaml` (nonexistent `AGENTS.md §Document Lifecycle Governance` → `doc-governance.md`; stale `§Skill Safety #7/#8` item numbers), `portable-minimal-kit.md` (removed `minimal-text-hardening-kit.md` → `check_text_integrity.py`), and a stale artifact-node filename in the `antigravity-v5-runtime.md` mermaid diagram. `PROJECT_EXAMPLES.md` (EN + zh) now uses the canonical `/plan` and `/implement` in its example flows instead of the `/write-plan` / `/execute-plan` aliases, which work on Codex/Antigravity but lack Claude `.claude/commands` stubs (so the examples are now cross-platform-portable).
+- Audit also surfaced unbuilt planned deliverables in historical ADR-002 / `lock-unification.md` (AC-24/AC-25: `governance-doc-lifecycle-matrix.md` + an `AGENTS.md` section never created) — left unedited pending a scoping decision rather than papering over the record (tracked as a follow-up).
+
+## [1.2.0] - 2026-05-31
+
+Consolidated release covering PRs #98–#122 since v1.1.2. Highlights:
+
+**Governance model**
+- **Handoff-trigger overhaul (#121)**: replaced the turn-count handoff trigger with a **context-occupancy + phase-boundary** advisory model, converged four scattered/contradictory turn constants into one SSoT (`AGENTS.md §Context Pruning`), and added a cross-platform caching/compaction reference (`token-governance.md §6.1`) for Claude / OpenAI Codex / Google Gemini. Stays advisory — no enforced gate added.
+- **Doc-consistency cleanup (#122)**: unified the tiny-fix threshold (`< 5 lines` → canonical `< 3 files, no semantic change`), unified the runtime sentinel (`[ACX-READ-OK]` → `⚡ ACX`), genericized stale exact model-version strings to drift-proof tier descriptors (EN + zh-TW + bug-report template), and aligned `ai-development-pitfalls.md` with the occupancy model + platform-neutral wording.
+
+**Security & integrity**
+- **CI security scanning (#20)**: Semgrep SAST + TruffleHog secret detection + pip-audit dependency audit, all tools pinned.
+- **Audit-chain tamper-evidence hardening (#117, ADR-003)**: git append-only witness for tail-truncation detection + `migrate` fail-closed against re-blessing forged history.
+- **Framework self-test integrity (#116)**: restored `tests/guard` collection and gated 82 governance-tool tests in CI.
+
+**Tooling & reliability**
+- validate.sh / validate.ps1: gate-injection hardening (#104), gate-progression repair (#110), inline-python hardening (#111), PS1↔SH parity backfill (#119), `--list-checks`, SSoT atomic writes, gate-receipt schema (#114).
+- Downstream/install: cross-session path alignment for zero-Python downstream (#106), scaffold-tier sidecar preservation (#101), framework-ADR filename matching (#100), Windows `.cmd` install/update repair (#120).
+
+**Docs**
+- README/cross-doc links work in both GitHub and deployed contexts (#103); version banners + skill count (17→14) corrected (#102); framework-internal refs removed from downstream guidance (#99).
+
+### Adversarial Governance Audit + Downstream UX Hardening (PR #104)
+
+**Validator (validate.sh / validate.ps1) — gate-injection hardening:**
+- T175–T247: 22 gate-injection scenarios closed — code-fence bypass, HTML-comment bypass, indented-receipt masking, unclosed-fence masking, multi-section masking, self-reclassification reset abuse (H4), receipts-in-fence diagnostic (T247)
+- Validator maintained 80 PASS / 4 WARN / 0 FAIL throughout 20+ commits
+- ACX phase shim check (`validate.sh`): guard fixed from `-d` (directory) to `-f` (file) — `.agent/skills/<name>` stubs are flat files; `-d` made the SKILL.md existence check dead code
+- ACX phase shim check (`validate.sh`): CRLF line-ending strip added to frontmatter parser — frontmatter `---` delimiter failed to match on Windows checkouts with CRLF line endings
+- ACX phase shim check (`validate.ps1`): `-PathType Container` → `-PathType Leaf` — same dead-code fix as validate.sh
+- `routing.md §5` / `bootstrap.md §6`: stale "Runtime v5" version token corrected to "Runtime v1"
+
+**Validator — M8 archive relative-link depth check:**
+- `validate.sh` / `validate.ps1` M8: scan `archive/*.md` for relative links and WARN when target does not exist — catches depth-mismatch breakage from content copied out of `current_state.md` (depth 2) into `archive/` (depth 3)
+- M8 link counter uses stdout read (not `sys.exit(count)`) to avoid mod-256 silent-PASS on ≥256 broken links
+- `validate.sh` M8 parity-hardened: `try/except` file-read guard + `^\d+$` numeric pre-check (matches `validate.ps1`)
+- `ship.md §2 State Update`: prose warning about relative-link depth hazard when archiving Ship History
+
+**Validator — validate.ps1 loop-termination parity fix (T243/T245/T247):**
+- `validate.ps1` T243/T245/T247 fail-closed branches used bare `exit 0` inside the `foreach ($wl in $worklogs)` loop — in PowerShell this terminates the entire script (not just the current iteration), silently skipping ~60 downstream checks and never printing a Summary line; Windows CI falsely reported exit 0 while `validate.sh` on Linux correctly reported exit 1
+- Fix: replaced `exit 0` with `$gateProgressionIllegal++; continue` in all three branches — mirrors `validate.sh` behavior where `sys.exit(0)` exits only the Python subprocess and bash continues the outer loop
+
+**test.md — no-test-runner fallback path:**
+- `hotfix` moved to sign-off-required group (`engineering_guardrails.md §12.2 no-exceptions`)
+- Gate 2 exception (5-Gate Contract) scoped to `quick-win`/`tiny-fix` only
+- Fallback procedure step 5 tier-scoped: `quick-win`/`tiny-fix` write PASS; `feature`/`arch-change`/`hotfix` do not write PASS receipt when Gate 2 unsatisfied
+- Step 6 tier-scoped: `quick-win`/`tiny-fix` → skip "Run all tests" and proceed to Step 4b; `feature`/`arch-change`/`hotfix` → step 5 terminal, do not proceed
+- `quick-win`/`tiny-fix` fallback trigger now writes a Drift Log entry, satisfying Step 4b Gate 2 exception precondition from both paths
+
+**bootstrap.md §3.7 — Next: field overflow fix:**
+- Feature full-phase chain (`[/brainstorm →] /spec → ... → /ship`) removed from `Next:` field to prevent 8-line Response Budget breach; chain now recorded in Work Log `## Task Description` only
+
+**`.codex/INSTALL.md` — bash dependency clarified:**
+- Bash required on ALL platforms (Windows PS1 installer wraps bash internally)
+- Git for Windows prerequisite explicit; PS1 commands include `-ExecutionPolicy Bypass`
+
+## [1.1.2] - 2026-04-17
+
+### Polish Batch 2: Governance Depth
+
+**Installer UX (completes 1.1):**
+- `deploy.sh` prints a Python-availability advisory at end-of-run — framework works without Python, but guarded SSoT writes fall back to direct writes (advisory locking disabled) when Python is missing, so multi-session users should install Python 3.8+
+
+**Token Efficiency (completes 3.2 + 3.3):**
+- `engineering_guardrails.md §Reading Mode` adds Loaded-Sections Receipt rule — `/bootstrap` echoes loaded §s to Work Log `## Session Info` so later phases can cite without re-reading
+- `bootstrap.md` adds Reading Mode Table at top — at-a-glance per-classification index of which §s to read vs skip (saves re-scanning the 374-line file)
+- `bootstrap.md §0` replaces inline prose with decision table (first-match-wins) — less cognitive load per classification
+
+**Governance Depth (completes 2.3 + 4.3):**
+- `engineering_guardrails.md §4.1` harmonizes "silent above 90%" with structured receipts — narrative-silent but plan/implement/ship compact blocks always include `Confidence:` field
+- `implement.md` Pre-Execution Check adds per-step Confidence re-assessment — step-level auditability, not just plan-level
+- `AGENTS.md §Read-Once Discipline` requires Drift Log receipt on Safety-Valve re-reads — creates auditable trail for the honor-system rule
+
+## [1.1.1] - 2026-04-17
+
+### Polish: Audit Findings
+
+**Installer UX:**
+- Broadened Git-bash detection via `Get-Command git` derivation — covers scoop, chocolatey, portable Git, and custom-prefix installs (installers/deploy_brain.ps1)
+- Removed `--quiet` from `git clone` / `git pull` in bootstrap path so slow networks no longer look like a hang (installers/deploy_brain.sh)
+
+**Governance Wiring:**
+- `Confidence:` field added to `/plan` compact-block template — confidence gate (engineering_guardrails §4.1) now has an auditable receipt even when confidence is high
+- Confidence Trace Audit advisory added to `/ship` pre-flight
+- `AGENTS.md` No-Bypass rule clarified: bans skipping gates within a classification's documented phase list, does NOT override quick-win/hotfix fast-paths
+
+**Token Discipline:**
+- `CLAUDE.md` condensed 51→27 lines — removed duplicated Hard Rules section; Skills subsection reduced to pointer (AGENTS.md §Skill Safety already canonical)
+
+**Discoverability:**
+- `routing.md §3` header labels the skill activation table as the canonical skill index
+
+## [1.1.0] - 2026-04-16
+
+### Token Optimization & Governance Hardening
+
+**Token Efficiency:**
+- SKILL.md heading-scope optimization: phase-entry loads only essential sections (~15-22% skill token savings on heavy scenarios) (#57)
+- Compressed phase outputs + Response Budget hard cap (≤8 lines prose) (#54)
+
+**Governance Improvements:**
+- Expert review quick-wins: rollback plan check in /ship, scope breach detection in /implement, ship-phase gate receipt audit, ADR auto-discovery in bootstrap (#56)
+- File existence guards in validate.ps1 and validate.sh (#55)
+
+**Deploy & Platform:**
+- Deploy skill subdirs recursively and fix dry-run accuracy (#52)
+- Correct migration guide path in bootstrap.md (#53)
+
+## [1.0.0] - 2026-04-12
+
+### Agentic OS v1.0 Public Release
+
+First public release of Agentic OS as an open-source governance framework for AI coding agents.
+
+**Core Framework:**
+- Gate Engine with mandatory phase progression and handshake enforcement
+- 5 task classifications: tiny-fix, quick-win, feature, hotfix, architecture-change
+- Engineering guardrails constitution with OWASP Top 10 auto-scan
+- Security guardrails with destructive command blocking
+- Single Source of Truth (SSoT) state model with guarded writes
+
+**Workflows & Commands:**
+- 25 slash commands covering full development lifecycle
+- Intent Router with 30+ bilingual (EN + zh-TW) intent mappings
+- Phase-aware skill activation with deterministic rule table
+
+**17 Professional Skills:**
+- Test-Driven Development, Systematic Debugging, Red Team / Adversarial
+- API Design, Auth Security, Database Design, Frontend Patterns
+- Parallel Agent Dispatching, Subagent-Driven Development
+- Writing Plans, Executing Plans, Requesting / Receiving Code Review
+- Verification Before Completion, Git Worktrees, Finishing a Branch, Doc Lookup
+
+**Multi-Platform Support:**
+- Claude Code (CLAUDE.md auto-load)
+- Google Antigravity (intent router + runtime)
+- OpenAI Codex (platform guide + CLI delegation)
+- Cursor, GitHub Copilot (AGENTS.md as project rules)
+
+**Deploy System:**
+- Manifest-based smart deploy with sha256 hash tracking
+- Tier classification: core (always overwrite), scaffold (skip if modified), wrapper (skip if modified)
+- Legacy path migration (automatic detection and recovery)
+- Cross-platform installers (Bash, PowerShell, CMD)
+
+**Token Efficiency:**
+- Conditional governance loading by task classification
+- Skill cache policy with metadata-first loading
+- Phase summary compaction for low-token resume
