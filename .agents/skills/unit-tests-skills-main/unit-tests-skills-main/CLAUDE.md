@@ -1,0 +1,89 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What This Repo Is
+
+A collection of AI agent skills (not a runnable application) for generating high-quality unit tests. Skills are installed into target projects via `npx openskills install` or `npx skills add`. There is no build system, test suite, or application code here — only skill definitions and rule documents.
+
+## Repository Structure
+
+```
+skills/
+  generate-test-cases/    # Skill: analyze code → output test case list
+    SKILL.md              # Skill definition (frontmatter + instructions)
+    rules/general/        # General testing rules
+  generate-tests/         # Skill: generate actual test code from cases
+    SKILL.md
+    rules/tests/
+      general/            # General testing rules (superset of generate-test-cases rules)
+      java/unit/          # Java-specific rules (JUnit 5, Mockito, AssertJ)
+      post-generation/    # Compilation verification rules
+templates/
+  AGENTS-SNIPPET.md       # Template users copy into their project's AGENTS.md
+```
+
+## Available Skills
+
+| Command | Purpose |
+|---------|---------|
+| `/generate-tests <target>` | Generate unit tests for code. Handles the full workflow: analyzes code, outputs test cases for review, then generates test code. Supports Java (JUnit 5, Mockito, AssertJ). |
+| `/generate-test-cases <target>` | Analyze code for test coverage and list needed test cases — without generating actual test code. Use for analysis-only. |
+
+## Workflow
+
+`/generate-tests` is the primary skill — it handles the complete workflow internally:
+
+1. Analyzes code and outputs a structured test case list
+2. Asks the user to review test cases before proceeding
+3. Generates test code
+4. Verifies compilation
+
+`/generate-test-cases` is available separately for analysis-only use cases (e.g., reviewing test coverage strategy without generating code).
+
+## Rules
+
+Each skill's `SKILL.md` lists which rule files it reads. When a skill is invoked, the skill definition instructs the agent to read the rule files from the skill's own `rules/` directory. The `generate-tests` skill has a superset of rules (includes Java-specific and post-generation rules).
+
+Key rule topics:
+- **INCLUDE/EXCLUDE criteria** (`test-case-generation-strategy.md`) — what to test vs. skip
+- **Naming** (`naming-conventions.md`) — `{method}_{state}_{outcome}` format
+- **Structure** (`general-principles.md`) — Given-When-Then, `actual`/`expected` prefixes
+- **Existing test awareness** (`existing-test-awareness.md`) — check for existing tests before generating; match project conventions; avoid duplicates
+- **Code context analysis** (`code-context-analysis.md`) — read DTOs, entities, enums, and other dependency classes before writing tests
+- **Java specifics** — JUnit 5 + Mockito + AssertJ; `@SpringBootTest` is FORBIDDEN in unit tests; use `ArgumentCaptor` to verify DTO/model fields; use `any()` only for irrelevant arguments; `@WebMvcTest` for controllers (`controller-test-rules.md`)
+- **Post-generation verification** — compilation verification (`compilation-verification.md`) AND test execution verification (`test-execution-verification.md`) — tests must both compile and pass
+
+## Plugin Distribution
+
+This repository is also a Claude Code plugin and marketplace, declared in
+`.claude-plugin/`. Users install it with:
+
+```
+/plugin marketplace add mavka-ai/unit-tests-skills
+/plugin install unit-tests-skills@mavka
+```
+
+**Any change to `.claude-plugin/` or `skills/` must be validated before pushing:**
+
+```bash
+./scripts/validate-plugin.sh
+```
+
+CI enforces this on every PR touching those paths, and the community-marketplace
+review pipeline runs the same `claude plugin validate` check — a failure here is
+a rejected submission there.
+
+Three non-obvious rules apply: validating the repo root does not validate
+`plugin.json`, a mismatched entry name passes validation but breaks installs,
+and `version` belongs in `plugin.json` only. See
+[AGENTS.md](AGENTS.md#plugin-validation) for the reasoning behind each — that
+file is the single source of truth; do not duplicate its detail here.
+
+## Contributing
+
+- Place general rules in `rules/general/` (or `rules/tests/general/` for generate-tests)
+- Place language-specific rules in `rules/tests/{language}/unit/`
+- **Keep general rules in sync**: General rules exist in TWO locations (`generate-test-cases/rules/general/` and `generate-tests/rules/tests/general/`). When adding or updating a general rule, copy the change to both directories
+- When adding a new rule, also add it to the Rules Reference list in the relevant `SKILL.md` file(s)
+- All changes require a PR with CODEOWNER approval; direct pushes to `main` are disabled

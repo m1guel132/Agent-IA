@@ -63,8 +63,12 @@ class Settings(BaseSettings):
     canvas_base_url: str = ""
     canvas_token: str = ""
 
-    # --- Gemini (opcional) ---
+    # --- Gemini & Backend LLM ---
     gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.5-flash"
+    gemini_model_plan: str = "gemini-2.5-flash"
+    llm_backend: str = "hybrid"  # "ollama" | "gemini" | "hybrid"
+    enable_data_masking: bool = True
 
     @property
     def vault_path(self) -> Path:

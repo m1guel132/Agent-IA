@@ -1,0 +1,501 @@
+\documentclass[11pt,a4paper]{article}
+
+% --- PAQUETES DE FORMATO Y TIPOGRAFÍA ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-tabla,es-noquoting]{babel}
+\usepackage[margin=2.2cm,headheight=15pt]{geometry}
+\usepackage[skip=6pt plus 2pt, indent=0pt]{parskip}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{listings}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,calc,positioning,shapes.geometric,shapes.misc,fit}
+\usepackage{hyperref}
+
+% --- PALETA DE COLORES TÉCNICA Y CORPORATIVA ---
+\definecolor{primary}{RGB}{15, 23, 42}       % Slate 900
+\definecolor{accent}{RGB}{14, 165, 233}      % Sky 500
+\definecolor{secondary}{RGB}{99, 102, 241}   % Indigo 500
+\definecolor{success}{RGB}{16, 185, 129}     % Emerald 500
+\definecolor{warning}{RGB}{245, 158, 11}     % Amber 500
+\definecolor{danger}{RGB}{239, 68, 68}       % Rose 500
+\definecolor{lightbg}{RGB}{248, 250, 252}    % Slate 50
+\definecolor{codebg}{RGB}{241, 245, 249}     % Slate 100
+\definecolor{bordercol}{RGB}{226, 232, 240}  % Slate 200
+
+% --- CONFIGURACIÓN DE HYPERREF ---
+\hypersetup{
+    colorlinks=true,
+    linkcolor=secondary,
+    citecolor=primary,
+    urlcolor=accent,
+    pdftitle={Manual de Usuario: Agent IA},
+    pdfauthor={Miguel Angel Polo Castro}
+}
+
+% --- CONFIGURACIÓN DE ENCABEZADOS Y PIE DE PÁGINA ---
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{primary}\textbf{Agent IA} --- Manual de Usuario y Guía de Operación}
+\fancyhead[R]{\small\color{gray}\today}
+\fancyfoot[C]{\small\color{primary}\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+% --- FORMATO DE TÍTULOS ---
+\titleformat{\section}{\Large\bfseries\color{primary}}{\thesection.}{0.5em}{}[\titlerule]
+\titleformat{\subsection}{\large\bfseries\color{secondary}}{\thesubsection.}{0.5em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries\color{primary}}{\thesubsubsection.}{0.5em}{}
+
+% --- CAJAS DE INFORMACIÓN Y DESTACADOS (tcolorbox) ---
+\newtcolorbox{infobox}[1]{
+    colback=lightbg,
+    colframe=accent,
+    coltitle=white,
+    fonttitle=\bfseries\small,
+    title=#1,
+    arc=2mm,
+    boxrule=0.8pt,
+    left=3mm, right=3mm, top=2mm, bottom=2mm
+}
+
+\newtcolorbox{alertbox}[1]{
+    colback=lightbg,
+    colframe=danger,
+    coltitle=white,
+    fonttitle=\bfseries\small,
+    title=#1,
+    arc=2mm,
+    boxrule=0.8pt,
+    left=3mm, right=3mm, top=2mm, bottom=2mm
+}
+
+\newtcolorbox{tipbox}[1]{
+    colback=lightbg,
+    colframe=success,
+    coltitle=white,
+    fonttitle=\bfseries\small,
+    title=#1,
+    arc=2mm,
+    boxrule=0.8pt,
+    left=3mm, right=3mm, top=2mm, bottom=2mm
+}
+
+% --- CONFIGURACIÓN DE LISTINGS (CÓDIGO) ---
+\lstset{
+    backgroundcolor=\color{codebg},
+    basicstyle=\ttfamily\footnotesize\color{primary},
+    keywordstyle=\bfseries\color{secondary},
+    stringstyle=\color{success},
+    commentstyle=\itshape\color{gray},
+    numberstyle=\tiny\color{gray},
+    numbers=none,
+    frame=single,
+    rulecolor=\color{bordercol},
+    breaklines=true,
+    breakatwhitespace=true,
+    showstringspaces=false,
+    tabsize=2,
+    inputencoding=utf8,
+    extendedchars=true,
+    literate=
+      {á}{{\'a}}1
+      {é}{{\'e}}1
+      {í}{{\'i}}1
+      {ó}{{\'o}}1
+      {ú}{{\'u}}1
+      {ñ}{{\~n}}1
+      {Á}{{\'A}}1
+      {É}{{\'E}}1
+      {Í}{{\'I}}1
+      {Ó}{{\'O}}1
+      {Ú}{{\'U}}1
+      {Ñ}{{\~N}}1
+      {—}{{---}}1
+      {¿}{{?`}}1
+      {¡}{{!`}}1
+}
+
+% --- ESTILOS DE BLOQUES TIKZ ---
+\tikzset{
+    block/.style={draw=primary, fill=lightbg, thick, rectangle, rounded corners=3pt, align=center, font=\small},
+    agentNode/.style={draw=secondary, fill=lightbg, thick, rectangle, rounded corners=3pt, minimum height=2.2em, minimum width=6.5em, align=center, font=\footnotesize\bfseries},
+    coreNode/.style={draw=primary, fill=primary!10, very thick, rectangle, rounded corners=4pt, minimum height=2.8em, minimum width=8.5em, align=center, font=\small\bfseries},
+    storageNode/.style={draw=accent, fill=accent!10, thick, cylinder, shape border rotate=90, aspect=0.25, minimum height=2.5em, minimum width=6.0em, align=center, font=\footnotesize\bfseries}
+}
+
+\begin{document}
+
+% ====================================================================
+% PORTADA FORMAL
+% ====================================================================
+\begin{titlepage}
+    \centering
+    \vspace*{1.0cm}
+    {\scshape\LARGE\bfseries\color{primary} SISTEMA MULTI-AGENTE INTELIGENTE \par}
+    \vspace{0.4cm}
+    {\scshape\large Copiloto de Conocimiento, Estudio y Segundo Cerebro \par}
+    \vspace{1.5cm}
+    
+    \rule{\linewidth}{1.8pt}\\[0.4cm]
+    {\Huge\bfseries\color{primary} Manual Oficial de Usuario\\[0.2cm] y Guía Técnica de Operación \par}
+    \vspace{0.2cm}
+    {\large\color{accent}\textbf{Agent IA --- Versión 1.0 (Arquitectura Híbrida)} \par}
+    \rule{\linewidth}{1.8pt}\\[1.5cm]
+    
+    \begin{minipage}{0.48\textwidth}
+        \begin{flushleft} \large
+            \textbf{Autor y Desarrollador:}\\
+            Miguel Ángel Polo Castro\\[0.3cm]
+            \textbf{Entorno de Ejecución:}\\
+            FastAPI + Streamlit + Ollama + Gemini
+        \end{flushleft}
+    \end{minipage}
+    ~
+    \begin{minipage}{0.48\textwidth}
+        \begin{flushright} \large
+            \textbf{Integraciones Principales:}\\
+            Notion (29 DBs Relacionales)\\
+            Obsidian (Vault Markdown)\\
+            ChromaDB (Memoria Vectorial)
+        \end{flushright}
+    \end{minipage}
+    
+    \vfill
+    
+    \begin{infobox}{Resumen del Documento}
+        Esta guía detalla la configuración, despliegue, operación y buenas prácticas del sistema \textbf{Agent IA}. Se documenta la interacción en lenguaje natural con el orquestador \textbf{Hermes}, el funcionamiento de la flota de agentes especializados (\textbf{Curador}, \textbf{Plan}, \textbf{Estudio}, \textbf{Sync}), el sistema de protección y ofuscación de datos locales (\texttt{DataMasker}) y el modo híbrido conmutable entre modelos locales y en la nube.
+    \end{infobox}
+    
+    \vspace{0.8cm}
+    {\large \today \par}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ====================================================================
+\section{Introducción y Visión General}
+% ====================================================================
+
+\subsection{¿Qué es Agent IA?}
+\textbf{Agent IA} es un sistema multi-agente personal diseñado para operar como un copiloto proactivo de gestión de conocimiento, estudio y planificación estratégica. El sistema conecta y mantiene sincronizados los dos pilares del \textbf{Segundo Cerebro}:
+\begin{enumerate}[leftmargin=1.5cm]
+    \item \textbf{Notion:} Base relacional de alta estructuración con 29 bases de datos interconectadas (Objetivos, Proyectos, Tareas, Áreas, Recursos, etc.).
+    \item \textbf{Obsidian:} Vault local de notas en formato Markdown plano, garantizando portabilidad, velocidad y control total de archivos.
+\end{enumerate}
+
+Toda la interacción con el usuario se realiza mediante \textbf{lenguaje natural} a través de \textbf{Hermes}, un agente orquestador central que clasifica intenciones, propone acciones y delega la ejecución en agentes especializados.
+
+\subsection{Filosofía de Diseño: Human-in-the-Loop y Revisión Proactiva}
+Agent IA opera bajo el principio estricto de \textbf{revisión humana}:
+\begin{itemize}
+    \item \textbf{Propone, no destruye:} Las notas, metas o tareas nunca se escriben de forma destructiva sin confirmación previa si implican decisiones de categorización o estructuración compleja.
+    \item \textbf{Aprobación conversacional:} El usuario puede confirmar propuestas mediante lenguaje natural (\textit{"sí", "dale", "hazlo", "perfecto"}) o a través de tarjetas interactivas con botones en la interfaz web.
+\end{itemize}
+
+% ====================================================================
+\section{Arquitectura del Sistema y Flota de Agentes}
+% ====================================================================
+
+Agent IA está construido bajo una \textbf{Arquitectura Hexagonal (Ports \& Adapters)}, lo que desacopla la lógica de negocio y agentes de los proveedores de inteligencia artificial (Ollama, Gemini) y de almacenamiento (Obsidian, Notion, ChromaDB).
+
+\begin{figure}[!htbp]
+\centering
+\begin{tikzpicture}[auto, node distance=2.2cm, >=Latex]
+    % Frontend
+    \node [coreNode, fill=secondary!15] (ui) {Frontend Web AI-Native\\(\texttt{:8000}) / HUD (\texttt{:8501})};
+    
+    % Gateway / Hermes
+    \node [coreNode, below of=ui, node distance=2.0cm] (hermes) {\textbf{Hermes (Orquestador)}\\Clasificador Semántico \& Máquina de Estados};
+    
+    % Flota de Agentes
+    \node [agentNode, below of=hermes, xshift=-4.5cm, node distance=2.2cm] (curador) {AgenteCurador\\(Notas \& Tags)};
+    \node [agentNode, below of=hermes, xshift=-1.5cm, node distance=2.2cm] (plan) {AgentePlan\\(Metas \& Tareas)};
+    \node [agentNode, below of=hermes, xshift=1.5cm, node distance=2.2cm] (estudio) {AgenteEstudio\\(Repaso SM-2)};
+    \node [agentNode, below of=hermes, xshift=4.5cm, node distance=2.2cm] (sync) {AgenteSync\\(Sincronización)};
+    
+    % Almacenamiento e Integraciones
+    \node [storageNode, below of=curador, node distance=2.2cm] (obsidian) {Obsidian Vault\\(Local MD)};
+    \node [storageNode, below of=plan, node distance=2.2cm] (notion) {Notion DBs\\(29 Tablas)};
+    \node [storageNode, below of=estudio, node distance=2.2cm] (chroma) {ChromaDB\\(Embeddings)};
+    \node [storageNode, below of=sync, node distance=2.2cm] (llm) {LLM Engines\\(Gemini / Ollama)};
+
+    % Conexiones
+    \draw [<->, thick] (ui) -- (hermes);
+    \draw [->, thick] (hermes) -- (curador);
+    \draw [->, thick] (hermes) -- (plan);
+    \draw [->, thick] (hermes) -- (estudio);
+    \draw [->, thick] (hermes) -- (sync);
+
+    \draw [<->, dashed] (curador) -- (obsidian);
+    \draw [<->, dashed] (curador) -- (notion);
+    \draw [<->, dashed] (plan) -- (notion);
+    \draw [<->, dashed] (curador) -- (chroma);
+    \draw [<->, dashed] (hermes) -- (llm);
+\end{tikzpicture}
+\caption{Diagrama de arquitectura hexagonal y flujo de delegación multi-agente.}
+\label{fig:arch_diagram}
+\end{figure}
+
+\subsection{Descripción de los Agentes Especializados}
+
+\begin{table}[!htbp]
+\centering
+\caption{Roles y responsabilidades de la flota de agentes.}
+\label{tab:agentes_summary}
+\begin{tabularx}{\textwidth}{@{}llX@{}}
+\toprule
+\textbf{Agente} & \textbf{Dominio} & \textbf{Responsabilidad Principal} \\ \midrule
+\textbf{Hermes} & Orquestación & Analiza el prompt, gestiona memoria de sesión, rutea peticiones y administra el ciclo de confirmación activa. \\
+\textbf{AgenteCurador} & Nota, Área & Extrae taxonomía (áreas, temas, tags), detecta duplicados vía búsqueda semántica y persiste en Notion + Obsidian. \\
+\textbf{AgentePlan} & Tarea, Proyecto, Meta & Desglosa metas en planes estructurados (Objetivos $\rightarrow$ Proyectos $\rightarrow$ Tareas) y ejecuta inserciones relacionales. \\
+\textbf{AgenteEstudio} & ItemEstudio & Administra tarjetas de estudio y calcula intervalos de repetición espaciada con el algoritmo SuperMemo SM-2. \\
+\textbf{AgenteSync} & Integraciones & Vela por la consistencia de datos entre plataformas externas (Notion, Obsidian, Todoist, Calendar). \\ \bottomrule
+\end{tabularx}
+\end{table}
+
+% ====================================================================
+\section{Requisitos y Preparación del Entorno}
+% ====================================================================
+
+\subsection{Prerrequisitos de Software}
+\begin{itemize}
+    \item \textbf{Sistema Operativo:} Windows 10/11 o Linux (Arch, Ubuntu, Debian).
+    \item \textbf{Python:} Versión 3.14 o superior.
+    \item \textbf{Gestor de Paquetes:} \texttt{uv} (Astral) para sincronización determinista de dependencias.
+    \item \textbf{Ollama (Local):} Para generación de embeddings locales (\texttt{nomic-embed-text}) y fallback offline.
+    \item \textbf{Google AI Studio API Key (Opcional pero Recomendado):} Para inferencia instantánea sub-segundo con Gemini Flash.
+\end{itemize}
+
+\subsection{Instalación de Dependencias con \texttt{uv}}
+Desde la raíz del repositorio, ejecute:
+\begin{lstlisting}[language=bash]
+# Sincronizar el entorno virtual completo
+uv sync
+\end{lstlisting}
+
+\subsection{Modelos Locales de Ollama}
+Asegúrese de descargar los pesos mínimos necesarios:
+\begin{lstlisting}[language=bash]
+# Modelo ultraligero de embeddings (Memoria Vectorial ChromaDB)
+ollama pull nomic-embed-text
+
+# Modelo local ligero para fallback / offline
+ollama pull llama3.2:3b
+\end{lstlisting}
+
+% ====================================================================
+\section{Configuración de Variables de Entorno (\texttt{.env})}
+% ====================================================================
+
+El archivo \texttt{.env} controla la conectividad, las claves criptográficas y el modo de operación del motor de inferencia.
+
+\begin{lstlisting}[caption={Estructura completa de configuración en .env}]
+# ===============================================================
+# Agent IA — Configuración Centralizada
+# ===============================================================
+
+# --- Integracion Notion ---
+AGENT_NOTION_TOKEN=ntn_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+AGENT_NOTION_ROOT_PAGE_ID=6941a7f7-a5d2-463f-a718-6cb9030f7c8c
+
+# --- Motor Local Ollama ---
+AGENT_OLLAMA_BASE_URL=http://localhost:11434
+AGENT_OLLAMA_MODEL=llama3.2:3b
+AGENT_OLLAMA_MODEL_RAPIDO=llama3.2:3b
+AGENT_OLLAMA_EMBED_MODEL=nomic-embed-text
+AGENT_OLLAMA_KEEP_ALIVE=30m
+
+# --- Almacenamiento Local (Obsidian y ChromaDB) ---
+AGENT_OBSIDIAN_VAULT_PATH=C:\Users\migue\Agent_IA_Vault
+AGENT_CHROMA_PERSIST_DIR=./data/chroma
+
+# --- Backend LLM e Inferencia en la Nube ---
+AGENT_LLM_BACKEND=hybrid                 # Opciones: hybrid | gemini | ollama
+AGENT_GEMINI_API_KEY=AIzaSyxxxxxxxxxxxx  # Clave de Google AI Studio
+AGENT_GEMINI_MODEL=gemini-2.0-flash
+AGENT_GEMINI_MODEL_PLAN=gemini-2.0-flash
+AGENT_ENABLE_DATA_MASKING=true           # Anonimizacion local de privacidad
+
+# --- Puertos de Red ---
+AGENT_API_HOST=0.0.0.0
+AGENT_API_PORT=8000
+AGENT_HUD_PORT=8501
+\end{lstlisting}
+
+\begin{infobox}{Modos de Backend (\texttt{AGENT\_LLM\_BACKEND})}
+\begin{itemize}
+    \item \textbf{hybrid (Recomendado):} Hermes, Curador y Plan utilizan Gemini Flash ($<800\text{ ms}$), mientras que ChromaDB y los embeddings permanecen 100\% locales con \texttt{nomic-embed-text}.
+    \item \textbf{ollama:} Inferencia 100\% local en tu máquina (sin conexión a internet).
+    \item \textbf{gemini:} Todo el pipeline opera en la nube de Google.
+\end{itemize}
+\end{infobox}
+
+% ====================================================================
+\section{Puesta en Marcha y Servicios}
+% ====================================================================
+
+El sistema se compone de dos interfaces independientes servidas por FastAPI y Streamlit:
+
+\begin{figure}[!htbp]
+\centering
+\begin{minipage}{0.48\textwidth}
+    \begin{lstlisting}[language=bash, caption={Terminal 1: API Gateway}]
+# Iniciar Servidor FastAPI y Web
+uv run agent-api
+    \end{lstlisting}
+\end{minipage}
+~
+\begin{minipage}{0.48\textwidth}
+    \begin{lstlisting}[language=bash, caption={Terminal 2: HUD Streamlit (Opcional)}]
+# Iniciar Panel Analitico Secundario
+uv run agent-hud
+    \end{lstlisting}
+\end{minipage}
+\end{figure}
+
+\subsection{Accesos Disponibles en el Navegador}
+\begin{itemize}
+    \item \textbf{Interfaz Web AI-Native Principal:} \href{http://localhost:8000/}{http://localhost:8000/}
+    \item \textbf{Documentación Interactiva Swagger / OpenAPI:} \href{http://localhost:8000/docs}{http://localhost:8000/docs}
+    \item \textbf{HUD de Métricas en Streamlit:} \href{http://localhost:8501/}{http://localhost:8501/}
+\end{itemize}
+
+% ====================================================================
+\section{Guía de Interacción y Casos de Uso}
+% ====================================================================
+
+\subsection{1. Curaduría y Captura de Conocimiento (\texttt{AgenteCurador})}
+Para guardar una nota, recurso o apunte, basta con indicarlo a Hermes:
+
+\begin{infobox}{Ejemplo de Prompt para Curaduría}
+\textbf{Usuario:} \textit{"Anota esto: Protocolo Raft resuelve consenso distribuido mediante elección de líder y replicación de log garantizando consistencia fuerte."}
+\end{infobox}
+
+\textbf{Flujo de Ejecución:}
+\begin{enumerate}
+    \item Hermes detecta la intención y delega a \texttt{AgenteCurador}.
+    \item \texttt{AgenteCurador} genera el embedding del texto y busca notas similares en ChromaDB para prevenir duplicados.
+    \item El LLM categoriza la nota:
+    \begin{itemize}
+        \item \textbf{Área sugerida:} \texttt{Sistemas Distribuidos} / \texttt{Redes}
+        \item \textbf{Tags:} \texttt{consenso}, \texttt{raft}, \texttt{distribuidos}
+    \end{itemize}
+    \item El sistema presenta una tarjeta interactiva de confirmación.
+    \item Al responder \textbf{\textit{"sí"}} o presionar el botón \textbf{\texttt{[ Confirmar ]}}:
+    \begin{itemize}
+        \item Se crea la página relacional en Notion con tags y área vinculada.
+        \item Se genera el archivo \texttt{Redes/Protocolo Raft.md} en el Vault de Obsidian.
+        \item Se indexa el ID de Notion en ChromaDB para búsquedas futuras.
+    \end{itemize}
+\end{enumerate}
+
+\subsection{2. Planificación Estratégica de Proyectos y Metas (\texttt{AgentePlan})}
+
+\begin{infobox}{Ejemplo de Prompt para Planificación}
+\textbf{Usuario:} \textit{"Quiero un plan estratégico para preparar mi examen final de Redes de Computadores en 3 semanas."}
+\end{infobox}
+
+\textbf{Resultado Estructurado que Genera el Sistema:}
+\begin{itemize}
+    \item \textbf{Objetivo Principal:} \textit{Aprobar Examen Final de Redes de Computadores} (Área: \textit{Universidad}).
+    \item \textbf{Proyecto 1: Dominio de Capa Física y Enlace}
+    \begin{itemize}
+        \item $[~]$ Resolver laboratorio de modulación y sincronismo.
+        \item $[~]$ Elaborar tabla comparativa de tramas UART vs SPI.
+    \end{itemize}
+    \item \textbf{Proyecto 2: Enrutamiento y Capa de Red}
+    \begin{itemize}
+        \item $[~]$ Configurar topología OSPF y BGP en simulador.
+        \item $[~]$ Practicar ejercicios de subnetting VLSM.
+    \end{itemize}
+\end{itemize}
+
+Al confirmar, el sistema inserta automáticamente las entidades en cascada en las bases de datos de Notion (\texttt{Objetivos} $\rightarrow$ \texttt{Proyectos} $\rightarrow$ \texttt{Tareas}) estableciendo las relaciones bidireccionales.
+
+\subsection{3. Creación Rápida de Tareas (Fast-Path)}
+Si solo necesitas agregar una tarea atómica sin desglose estratégico:
+\begin{infobox}{Comando Rápido}
+\textbf{Usuario:} \textit{"agrega una tarea: Enviar informe de laboratorio a David Herrera antes de las 6pm"}
+\end{infobox}
+El sistema omite el procesamiento de LLM, ejecuta la inserción directa en la base de datos de \texttt{Tareas} de Notion y responde en menos de 300 ms.
+
+% ====================================================================
+\section{Sistema de Privacidad y Anonimización (\texttt{DataMasker})}
+% ====================================================================
+
+Para garantizar la confidencialidad de la información cuando se utiliza el backend de Gemini Flash en la nube, el sistema incorpora el middleware \texttt{DataMasker} (\texttt{sanitizer.py}).
+
+\subsection{Mecanismo de Enmascaramiento y Restitución Local}
+\begin{figure}[!htbp]
+\centering
+\begin{tikzpicture}[node distance=1.8cm, auto, >=Latex]
+    \node [block, text width=9.5cm, fill=lightbg] (in) {\textbf{Texto Original (Local):}\\ \textit{"Contactar a soporte@empresa.com con api\_key=AIzaSy9843hf por \$5,000 USD"}};
+    \node [block, text width=9.5cm, fill=warning!10, below of=in] (mask) {\textbf{DataMasker (Filtro Regex Local):}\\ Enmascara PII y genera identificadores sintéticos};
+    \node [block, text width=9.5cm, fill=codebg, below of=mask] (out) {\textbf{Payload Transmitido a Gemini por HTTPS:}\\ \textit{"Contactar a <EMAIL\_1> con <SECRET\_1> por <AMOUNT\_1>"}};
+    \node [block, text width=9.5cm, fill=success!10, below of=out] (resp) {\textbf{Desofuscador Local (Post-Respuesta):}\\ Restituye los valores originales antes de guardar en Notion/Obsidian};
+
+    \draw [->, thick] (in) -- (mask);
+    \draw [->, thick] (mask) -- (out);
+    \draw [->, thick] (out) -- (resp);
+\end{tikzpicture}
+\caption{Flujo de sanitización local y protección de privacidad.}
+\label{fig:datamasker_flow}
+\end{figure}
+
+\subsection{Entidades Protegidas Automáticamente}
+\begin{itemize}
+    \item \textbf{Secretos y Credenciales:} \texttt{api\_key}, \texttt{token}, \texttt{password}, \texttt{contraseña}.
+    \item \textbf{Direcciones de Correo:} Cualquier formato estándar \texttt{user@domain.ext}.
+    \item \textbf{Números Telefónicos:} Secuencias locales e internacionales de 7 a 15 dígitos.
+    \item \textbf{Montos Financieros:} Cifras con símbolos de moneda (\$, €, USD, COP, EUR, etc.).
+\end{itemize}
+
+% ====================================================================
+\section{Diagnóstico y Resolución de Problemas}
+% ====================================================================
+
+\begin{table}[!htbp]
+\centering
+\caption{Guía de diagnóstico de errores comunes.}
+\label{tab:troubleshooting}
+\begin{tabularx}{\textwidth}{@{}lXX@{}}
+\toprule
+\textbf{Síntoma} & \textbf{Causa Probable} & \textbf{Solución} \\ \midrule
+\textbf{Error 429 Too Many Requests} & Límite de peticiones de Google AI Studio alcanzado. & El sistema activa el fallback local automáticamente. Si persiste, espere 60 segundos o configure una API key con facturación. \\
+\textbf{Respuestas tardan $>30\text{ s}$} & El backend está en modo \texttt{ollama} ejecutando modelos pesados en CPU. & Cambie en \texttt{.env} a \texttt{AGENT\_LLM\_BACKEND=hybrid} o baje el modelo local a \texttt{llama3.2:3b}. \\
+\textbf{Error de conexión en Notion} & Token de Notion expirado o página raíz no compartida con la integración. & Verifique en Notion que la integración \textbf{Agent IA} tenga permisos de lectura/escritura en la página raíz. \\
+\textbf{ChromaDB no inicia} & Permisos de escritura bloqueados en la carpeta \texttt{./data/chroma}. & Asegúrese de que el usuario tenga permisos de escritura en la carpeta del proyecto. \\ \bottomrule
+\end{tabularx}
+\end{table}
+
+% ====================================================================
+\section{Comandos de Referencia Rápida}
+% ====================================================================
+
+\begin{table}[!htbp]
+\centering
+\caption{Comandos esenciales de la CLI del proyecto.}
+\label{tab:cli_commands}
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+\textbf{Comando} & \textbf{Acción} \\ \midrule
+\texttt{uv run agent-api} & Inicia el API Gateway de FastAPI y la interfaz web en \texttt{http://localhost:8000}. \\
+\texttt{uv run agent-hud} & Inicia el HUD de monitoreo en Streamlit en \texttt{http://localhost:8501}. \\
+\texttt{uv run pytest -v tests/} & Ejecuta la suite completa de 46 pruebas unitarias y de integración. \\
+\texttt{python scripts/sync\_notion\_map.py} & Re-escanea las 29 bases de datos de Notion y regenera la caché local. \\
+\texttt{ollama list} & Muestra los modelos de inteligencia artificial instalados localmente. \\ \bottomrule
+\end{tabularx}
+\end{table}
+
+\end{document}

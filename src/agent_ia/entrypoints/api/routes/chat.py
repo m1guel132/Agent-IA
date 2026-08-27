@@ -8,9 +8,10 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from agent_ia.entrypoints.api.dependencies import get_hermes
+from agent_ia.use_cases.hermes import Hermes
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -32,13 +33,15 @@ class ChatResponse(BaseModel):
 
 
 @router.post("/", response_model=ChatResponse)
-async def enviar_mensaje(request: ChatRequest) -> ChatResponse:
+async def enviar_mensaje(
+    request: ChatRequest,
+    hermes: Hermes = Depends(get_hermes),
+) -> ChatResponse:
     """Envía un mensaje a Hermes y devuelve la respuesta.
 
     Este endpoint implementa el flujo completo del diagrama de secuencia:
     Miguel → Interfaz → Gateway → Hermes → Agente → (propuesta/resultado)
     """
-    hermes = get_hermes()
     resultado = await hermes.procesar_mensaje(request.mensaje)
 
     return ChatResponse(
@@ -57,7 +60,9 @@ class HistorialResponse(BaseModel):
 
 
 @router.get("/historial", response_model=HistorialResponse)
-async def obtener_historial() -> HistorialResponse:
+async def obtener_historial(
+    hermes: Hermes = Depends(get_hermes),
+) -> HistorialResponse:
     """Devuelve el historial de la conversación actual."""
-    hermes = get_hermes()
     return HistorialResponse(mensajes=hermes.obtener_historial())
+

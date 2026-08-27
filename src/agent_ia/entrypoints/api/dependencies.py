@@ -12,9 +12,12 @@ from functools import lru_cache
 
 from agent_ia.infrastructure.config import get_settings
 from agent_ia.infrastructure.ollama_adapter import OllamaAdapter
+from agent_ia.infrastructure.gemini_adapter import GeminiAdapter
+from agent_ia.infrastructure.sanitizer import DataMasker
 from agent_ia.infrastructure.chroma_adapter import ChromaAdapter
 from agent_ia.infrastructure.obsidian_adapter import ObsidianAdapter
 from agent_ia.infrastructure.notion_adapter import NotionAdapter
+from agent_ia.infrastructure.json_study_adapter import JsonStudyAdapter
 from agent_ia.use_cases.agente_curador import AgenteCurador
 from agent_ia.use_cases.agente_estudio import AgenteEstudio
 from agent_ia.use_cases.agente_sync import AgenteSync
@@ -26,35 +29,79 @@ logger = logging.getLogger(__name__)
 
 @lru_cache
 def get_hermes() -> Hermes:
-    """Composition root: crea y conecta todos los componentes."""
+    """Composition root: crea y conecta todos los componentes según el backend configurado."""
     settings = get_settings()
 
+    # Adaptador base local (Ollama)
+    llm_local = OllamaAdapter(settings)
+    llm_local_rapido = OllamaAdapter(settings, model_override=settings.ollama_model_rapido)
+
+    # Determinar qué backend usar
+    if settings.llm_backend in {"gemini", "hybrid"} and settings.gemini_api_key:
+        logger.info(
+            "Iniciando Agent IA con backend %s (Gemini: %s, Plan: %s, Sanitización: %s)",
+            settings.llm_backend.upper(),
+            settings.gemini_model,
+            settings.gemini_model_plan,
+            settings.enable_data_masking,
+        )
+        masker = DataMasker(enabled=settings.enable_data_masking)
+        llm_gemini = GeminiAdapter(
+            settings=settings,
+            model_override=settings.gemini_model,
+            masker=masker,
+            fallback_llm=llm_local_rapido,
+        )
+        llm_gemini_plan = GeminiAdapter(
+            settings=settings,
+            model_override=settings.gemini_model_plan,
+            masker=masker,
+            fallback_llm=llm_local,
+        )
+
+        llm_principal = llm_gemini
+        llm_hermes = llm_gemini
+        llm_plan = llm_gemini_plan
+
+        # En modo híbrido, los embeddings y ChromaDB se mantienen 100% locales
+        llm_embeddings = llm_local if settings.llm_backend == "hybrid" else llm_gemini
+    else:
+        logger.info("Iniciando Agent IA con backend 100%% LOCAL (Ollama: %s)", settings.ollama_model)
+        llm_principal = llm_local
+        llm_hermes = llm_local_rapido
+        llm_plan = llm_local
+        llm_embeddings = llm_local
+
     # --- Infrastructure adapters ---
-    llm = OllamaAdapter(settings)
-    llm_rapido = OllamaAdapter(settings, model_override=settings.ollama_model_rapido)
-    vector_store = ChromaAdapter(settings, llm)
+    vector_store = ChromaAdapter(settings, llm_embeddings)
     obsidian = ObsidianAdapter(settings)
     notion = NotionAdapter(settings)
+    study_repo = JsonStudyAdapter()
 
     # --- Agents ---
     curador = AgenteCurador(
-        llm=llm,
+        llm=llm_principal,
         obsidian=obsidian,
         vector_store=vector_store,
         notion=notion,
     )
-    estudio = AgenteEstudio()
+    estudio = AgenteEstudio(
+        llm=llm_principal,
+        study_repo=study_repo,
+        obsidian=obsidian,
+        notion=notion,
+    )
     sync = AgenteSync()
-    plan = AgentePlan(llm=llm, notion=notion)
+    plan = AgentePlan(llm=llm_plan, notion=notion)
 
     # --- Orchestrator ---
-    hermes = Hermes(llm=llm_rapido)
+    hermes = Hermes(llm=llm_hermes)
     hermes.registrar_agente("curador", curador)
     hermes.registrar_agente("estudio", estudio)
     hermes.registrar_agente("sync", sync)
     hermes.registrar_agente("plan", plan)
 
-    logger.info("Agent IA inicializado: Hermes + 4 agentes registrados")
+    logger.info("Agent IA inicializado con éxito: Hermes + 4 agentes registrados")
     return hermes
 
 
