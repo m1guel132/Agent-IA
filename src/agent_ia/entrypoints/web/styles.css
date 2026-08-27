@@ -904,6 +904,105 @@ body {
 }
 
 /* ==========================================================================
+   3D SIMS VIRTUAL OFFICE ACCESS BUTTONS
+   ========================================================================== */
+.sims-topbar-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(139, 92, 246, 0.15));
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  color: var(--text-primary);
+  text-decoration: none;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+}
+
+.sims-topbar-btn:hover {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.28), rgba(139, 92, 246, 0.28));
+  border-color: #3b82f6;
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.3);
+  transform: translateY(-1px);
+}
+
+.sims-topbar-icon {
+  font-size: 1rem;
+}
+
+.sims-topbar-badge {
+  background: #3b82f6;
+  color: white;
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.sidebar-sims-card {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.6), rgba(30, 41, 59, 0.8));
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: var(--radius-md);
+  padding: 0.65rem 0.8rem;
+  text-decoration: none;
+  color: var(--text-primary);
+  margin-top: 0.35rem;
+  transition: all 0.2s ease;
+}
+
+.sidebar-sims-card:hover {
+  border-color: #3b82f6;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(59, 130, 246, 0.2));
+  transform: translateX(2px);
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.15);
+}
+
+.sims-card-icon {
+  font-size: 1.25rem;
+  background: rgba(59, 130, 246, 0.15);
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sims-card-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.sims-card-info strong {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.sims-card-info small {
+  font-size: 0.66rem;
+  color: var(--text-secondary);
+}
+
+.sims-card-arrow {
+  font-size: 0.85rem;
+  color: var(--text-tertiary);
+  transition: transform 0.2s ease;
+}
+
+.sidebar-sims-card:hover .sims-card-arrow {
+  color: #3b82f6;
+  transform: translate(2px, -2px);
+}
+
+/* ==========================================================================
    ANIMATIONS & RESPONSIVE
    ========================================================================== */
 @keyframes fadeIn {
