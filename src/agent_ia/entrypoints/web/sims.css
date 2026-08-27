@@ -1,0 +1,546 @@
+/* ====================================================================
+   THE SIMS FOR AI AGENTS — STYLESHEET (Virtual Multi-Agent Office)
+   ==================================================================== */
+
+:root {
+    --font-main: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+
+    /* Light Studio Palette (Default) */
+    --bg-app: #eef2f6;
+    --glass-bg: rgba(255, 255, 255, 0.75);
+    --glass-border: rgba(255, 255, 255, 0.85);
+    --glass-shadow: 0 12px 36px rgba(15, 23, 42, 0.08);
+    --text-main: #0f172a;
+    --text-muted: #64748b;
+    --card-bg: rgba(255, 255, 255, 0.9);
+    --accent-blue: #3b82f6;
+    --accent-orange: #f97316;
+    --accent-purple: #8b5cf6;
+    --accent-green: #10b981;
+    --accent-yellow: #f59e0b;
+}
+
+body.dark-mode {
+    --bg-app: #090d16;
+    --glass-bg: rgba(15, 23, 42, 0.8);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --glass-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --card-bg: rgba(15, 23, 42, 0.88);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: var(--font-main);
+    background-color: var(--bg-app);
+    color: var(--text-main);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    user-select: none;
+}
+
+/* --- TOP BROWSER / OS HEADER --- */
+.os-topbar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 52px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--glass-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    z-index: 100;
+}
+
+.os-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.window-controls {
+    display: flex;
+    gap: 6px;
+}
+
+.ctrl-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.ctrl-dot.red { background: #ff5f56; }
+.ctrl-dot.yellow { background: #ffbd2e; }
+.ctrl-dot.green { background: #27c93f; }
+
+.brand-tag {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.brand-icon { font-size: 16px; }
+.brand-name { font-weight: 800; font-size: 14px; letter-spacing: -0.3px; }
+.brand-badge {
+    background: var(--accent-blue);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+}
+
+.os-center {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+}
+
+.search-capsule {
+    background: rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 6px 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    width: 440px;
+    max-width: 90%;
+}
+body.dark-mode .search-capsule {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.os-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cam-btn {
+    background: rgba(0, 0, 0, 0.04);
+    border: 1px solid var(--glass-border);
+    color: var(--text-main);
+    padding: 5px 10px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.cam-btn:hover {
+    background: var(--accent-blue);
+    color: white;
+    border-color: var(--accent-blue);
+}
+
+.mode-toggle {
+    background: transparent;
+    border: 1px solid var(--glass-border);
+    color: var(--text-main);
+    padding: 5px 10px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.back-link {
+    background: #0f172a;
+    color: white;
+    text-decoration: none;
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    transition: transform 0.15s ease;
+}
+.back-link:hover {
+    transform: translateY(-1px);
+}
+body.dark-mode .back-link {
+    background: var(--accent-blue);
+}
+
+/* --- 3D CANVAS & CONTAINER --- */
+#canvas-container {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+}
+
+#labels-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+/* 3D Floating Station Pill */
+.station-pill {
+    position: absolute;
+    transform: translate(-50%, -100%);
+    background: var(--card-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    padding: 5px 12px;
+    border-radius: 20px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    font-weight: 700;
+    pointer-events: auto;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    white-space: nowrap;
+}
+.station-pill:hover {
+    transform: translate(-50%, -108%) scale(1.05);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+}
+.station-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-blue);
+    box-shadow: 0 0 8px var(--accent-blue);
+}
+.station-dot.orange { background: var(--accent-orange); box-shadow: 0 0 8px var(--accent-orange); }
+.station-dot.purple { background: var(--accent-purple); box-shadow: 0 0 8px var(--accent-purple); }
+.station-dot.green { background: var(--accent-green); box-shadow: 0 0 8px var(--accent-green); }
+.station-dot.yellow { background: var(--accent-yellow); box-shadow: 0 0 8px var(--accent-yellow); }
+
+/* --- RIGHT STATUS SIDEBAR --- */
+.right-hud-sidebar {
+    position: absolute;
+    top: 68px;
+    right: 20px;
+    width: 310px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: 18px;
+    box-shadow: var(--glass-shadow);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    z-index: 90;
+}
+
+.hud-header {
+    border-bottom: 1px solid var(--glass-border);
+    padding-bottom: 10px;
+}
+.hud-subtitle {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+}
+.hud-title {
+    font-size: 16px;
+    font-weight: 800;
+    margin-top: 2px;
+}
+
+.agent-roster {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.roster-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.4);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+body.dark-mode .roster-item {
+    background: rgba(255, 255, 255, 0.04);
+}
+.roster-item:hover, .roster-item.active {
+    background: var(--card-bg);
+    border-color: var(--glass-border);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+    transform: translateX(-2px);
+}
+
+.agent-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    background: #e2e8f0;
+}
+.agent-avatar.blue { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+.agent-avatar.orange { background: rgba(249, 115, 22, 0.15); color: #f97316; }
+.agent-avatar.purple { background: rgba(139, 92, 246, 0.15); color: #8b5cf6; }
+.agent-avatar.green { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+.agent-avatar.yellow { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+
+.roster-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+.roster-info strong {
+    font-size: 12px;
+    font-weight: 700;
+}
+.roster-info small {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.status-pill {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 10px;
+}
+.status-pill.green {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+}
+
+.hud-quick-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding-top: 6px;
+    border-top: 1px solid var(--glass-border);
+}
+.stat-box {
+    background: rgba(0, 0, 0, 0.03);
+    padding: 8px;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+}
+body.dark-mode .stat-box {
+    background: rgba(255, 255, 255, 0.04);
+}
+.stat-label {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+.stat-val {
+    font-size: 12px;
+    font-weight: 800;
+    margin-top: 2px;
+}
+.stat-val.highlight {
+    color: var(--accent-blue);
+}
+
+.hud-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.action-btn {
+    border: none;
+    border-radius: 10px;
+    padding: 9px 14px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.action-btn.primary {
+    background: var(--accent-blue);
+    color: #fff;
+}
+.action-btn.primary:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+}
+.action-btn.secondary {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--text-main);
+    border: 1px solid var(--glass-border);
+}
+body.dark-mode .action-btn.secondary {
+    background: rgba(255, 255, 255, 0.08);
+}
+.action-btn.secondary:hover {
+    background: rgba(0, 0, 0, 0.09);
+}
+
+/* --- BOTTOM FLOATING TELEMETRY CARD (Exact Video Reference) --- */
+.bottom-telemetry-card {
+    position: absolute;
+    bottom: 24px;
+    right: 20px;
+    width: 360px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    box-shadow: var(--glass-shadow);
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    z-index: 95;
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+}
+.bottom-telemetry-card.hidden {
+    transform: translateY(120%);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.active-agent-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 800;
+}
+.dot-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent-blue);
+    box-shadow: 0 0 10px var(--accent-blue);
+}
+.card-close {
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text-muted);
+}
+.card-close:hover { color: var(--text-main); }
+
+.card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.metric-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+}
+.metric-label {
+    font-weight: 700;
+    color: var(--text-muted);
+    font-size: 10px;
+    letter-spacing: 0.5px;
+}
+.metric-value {
+    font-weight: 700;
+    color: var(--text-main);
+}
+.metric-value.mono {
+    font-family: var(--font-mono);
+}
+
+.status-tag {
+    font-size: 9px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.5px;
+}
+.status-tag.running {
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+    animation: pulseGlow 1.5s infinite;
+}
+
+@keyframes pulseGlow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+.card-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 4px;
+}
+.progress-bar-bg {
+    width: 100%;
+    height: 6px;
+    background: rgba(0, 0, 0, 0.08);
+    border-radius: 6px;
+    overflow: hidden;
+}
+body.dark-mode .progress-bar-bg {
+    background: rgba(255, 255, 255, 0.1);
+}
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #3b82f6, #60a5fa);
+    border-radius: 6px;
+    transition: width 0.4s ease;
+}
+.progress-footer {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+
+/* --- FLOATING INSTRUCTIONS --- */
+.floating-instructions {
+    position: absolute;
+    bottom: 24px;
+    left: 20px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--glass-border);
+    padding: 10px 18px;
+    border-radius: 14px;
+    box-shadow: var(--glass-shadow);
+    display: flex;
+    gap: 16px;
+    font-size: 11px;
+    color: var(--text-muted);
+    z-index: 90;
+}
+.floating-instructions strong {
+    color: var(--text-main);
+}

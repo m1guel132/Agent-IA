@@ -78,6 +78,15 @@ async def web_app():
     return {"error": "Interfaz web no encontrada"}
 
 
+@app.get("/sims", tags=["ui"])
+async def sims_view():
+    """Visualizador 3D Isométrico de Agentes (The Sims for AI Agents)."""
+    sims_path = WEB_DIR / "sims.html"
+    if sims_path.exists():
+        return FileResponse(str(sims_path))
+    return {"error": "Simulador 3D no encontrado"}
+
+
 @app.get("/health", tags=["system"])
 async def health():
     """Health check del sistema completo."""

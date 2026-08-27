@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent IA — Virtual Multi-Agent Office (The Sims 3D)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/sims.css">
+    <!-- Three.js & OrbitControls from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
+</head>
+<body>
+    <!-- TOP BROWSER / OS BAR -->
+    <header class="os-topbar">
+        <div class="os-left">
+            <div class="window-controls">
+                <span class="ctrl-dot red"></span>
+                <span class="ctrl-dot yellow"></span>
+                <span class="ctrl-dot green"></span>
+            </div>
+            <div class="brand-tag">
+                <span class="brand-icon">🏢</span>
+                <span class="brand-name">Agent IA</span>
+                <span class="brand-badge">SIMULATOR 3D</span>
+            </div>
+        </div>
+
+        <div class="os-center">
+            <div class="search-capsule">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <span>localhost:8000/sims — The Sims for Managing AI AGENTS</span>
+            </div>
+        </div>
+
+        <div class="os-right">
+            <button class="cam-btn" onclick="focusCamera('overview')">🌐 General</button>
+            <button class="cam-btn" onclick="focusCamera('desk')">💻 Desk 01</button>
+            <button class="cam-btn" onclick="focusCamera('vault')">🔒 Vault</button>
+            <button class="cam-btn" onclick="focusCamera('kanban')">📋 Kanban</button>
+            <button class="cam-btn" onclick="focusCamera('study')">📚 Study</button>
+            <button class="mode-toggle" id="themeToggle" onclick="toggleLightingMode()">🌙 Noche</button>
+            <a href="/" class="back-link">💬 Chat Principal</a>
+        </div>
+    </header>
+
+    <!-- 3D WEBGL CANVAS CONTAINER -->
+    <main id="canvas-container">
+        <!-- 3D Floating Interactive Labels positioned in 3D Space -->
+        <div id="labels-layer"></div>
+    </main>
+
+    <!-- RIGHT STATUS SIDEBAR (Matching Video) -->
+    <aside class="right-hud-sidebar">
+        <div class="hud-header">
+            <span class="hud-subtitle">SYSTEM STATUS</span>
+            <h3 class="hud-title">Agent Fleet Floor</h3>
+        </div>
+
+        <div class="agent-roster">
+            <div class="roster-item active" onclick="selectAgent('hermes')">
+                <span class="agent-avatar blue">🤖</span>
+                <div class="roster-info">
+                    <strong>Hermes (Orquestador)</strong>
+                    <small>Active Compute · Desk 01</small>
+                </div>
+                <span class="status-pill green">Active</span>
+            </div>
+
+            <div class="roster-item" onclick="selectAgent('curador')">
+                <span class="agent-avatar orange">📦</span>
+                <div class="roster-info">
+                    <strong>AgenteCurador</strong>
+                    <small>Secure Storage · Vault</small>
+                </div>
+                <span class="status-pill green">Active</span>
+            </div>
+
+            <div class="roster-item" onclick="selectAgent('plan')">
+                <span class="agent-avatar purple">📋</span>
+                <div class="roster-info">
+                    <strong>AgentePlan</strong>
+                    <small>Kanban Wall · Strategy</small>
+                </div>
+                <span class="status-pill green">Active</span>
+            </div>
+
+            <div class="roster-item" onclick="selectAgent('estudio')">
+                <span class="agent-avatar green">📚</span>
+                <div class="roster-info">
+                    <strong>AgenteEstudio</strong>
+                    <small>SM-2 Lab · Flashcards</small>
+                </div>
+                <span class="status-pill green">Active</span>
+            </div>
+
+            <div class="roster-item" onclick="selectAgent('sync')">
+                <span class="agent-avatar yellow">🛡️</span>
+                <div class="roster-info">
+                    <strong>AgenteSync / Masker</strong>
+                    <small>Access Control · Gate</small>
+                </div>
+                <span class="status-pill green">Active</span>
+            </div>
+        </div>
+
+        <div class="hud-quick-stats">
+            <div class="stat-box">
+                <span class="stat-label">NOTION RELATIONS</span>
+                <span class="stat-val">29 DBs</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">OBSIDIAN VAULT</span>
+                <span class="stat-val">Synced</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">CHROMA VECTOR</span>
+                <span class="stat-val">100% Local</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">LLM BACKEND</span>
+                <span class="stat-val highlight">Gemini Flash</span>
+            </div>
+        </div>
+
+        <div class="hud-controls">
+            <button class="action-btn primary" onclick="triggerTaskSimulation()">⚡ Simular Despacho de Tarea</button>
+            <button class="action-btn secondary" onclick="toggleAutoRoam()" id="roamBtn">🚶 Activar Modo Paseo</button>
+        </div>
+    </aside>
+
+    <!-- BOTTOM FLOATING TELEMETRY CARD (Matching Reference Image) -->
+    <section class="bottom-telemetry-card" id="telemetryCard">
+        <div class="card-top">
+            <div class="active-agent-badge" id="cardAgentBadge">
+                <span class="dot-indicator"></span>
+                <span id="cardAgentName">blue-agent (Hermes)</span>
+            </div>
+            <div class="card-close" onclick="closeTelemetry()">✕</div>
+        </div>
+
+        <div class="card-body">
+            <div class="metric-row">
+                <span class="metric-label">TASK</span>
+                <span class="metric-value" id="cardTask">Semantic Intent Dispatch & Route</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">FEATURE</span>
+                <span class="metric-value" id="cardFeature">Hexagonal Architecture / Router</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">RUNTIME</span>
+                <span class="metric-value mono" id="cardRuntime">01:14.2s</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">TOKENS</span>
+                <span class="metric-value mono" id="cardTokens">12,840</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">STATUS</span>
+                <span class="status-tag running" id="cardStatus">RUNNING</span>
+            </div>
+        </div>
+
+        <div class="card-progress">
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" id="cardProgressFill" style="width: 78%;"></div>
+            </div>
+            <div class="progress-footer">
+                <span class="prog-text">Pipeline Processing</span>
+                <span class="prog-num" id="cardProgressNum">78%</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- INSTRUCTIONS HINT -->
+    <div class="floating-instructions">
+        <span>🖱️ <strong>Click izquierdo + Arrastrar:</strong> Rotar cámara 3D</span>
+        <span>🔍 <strong>Scroll:</strong> Zoom</span>
+        <span>👆 <strong>Click en Agente / Estación:</strong> Inspeccionar telemetría</span>
+    </div>
+
+    <script src="/static/sims.js"></script>
+</body>
+</html>

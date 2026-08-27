@@ -47,6 +47,13 @@ def test_app_endpoint_serves_html(client):
     assert "Agent IA" in response.text
 
 
+def test_sims_endpoint_serves_html(client):
+    response = client.get("/sims")
+    assert response.status_code == 200
+    assert "text/html" in response.headers.get("content-type", "")
+    assert "The Sims" in response.text or "Virtual Multi-Agent Office" in response.text
+
+
 def test_static_files_accessible(client):
     res_css = client.get("/static/styles.css")
     assert res_css.status_code == 200
@@ -55,6 +62,14 @@ def test_static_files_accessible(client):
     res_js = client.get("/static/app.js")
     assert res_js.status_code == 200
     assert "sendMessage" in res_js.text
+
+    res_sims_css = client.get("/static/sims.css")
+    assert res_sims_css.status_code == 200
+    assert "station-pill" in res_sims_css.text
+
+    res_sims_js = client.get("/static/sims.js")
+    assert res_sims_js.status_code == 200
+    assert "spawnAllAgents" in res_sims_js.text
 
 
 def test_health_endpoint(client):
