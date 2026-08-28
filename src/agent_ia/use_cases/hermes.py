@@ -16,7 +16,9 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from agent_ia.domain.entities import Nota
 from agent_ia.domain.ports.llm_port import LLMPort
+from agent_ia.domain.ports.obsidian_port import ObsidianPort
 from agent_ia.use_cases.agente import Agente, EstadoResultado, Resultado
 
 logger = logging.getLogger(__name__)
@@ -74,12 +76,13 @@ class MensajeChat:
 class Hermes:
     """Orquestador central de Agent IA.
 
-    Centraliza la memoria de la conversación y delega a agentes
-    especializados según la intención del usuario.
+    Centraliza la memoria de la conversación, delega a agentes
+    especializados y persiste los diálogos en el Segundo Cerebro (Obsidian).
     """
 
-    def __init__(self, llm: LLMPort) -> None:
+    def __init__(self, llm: LLMPort, obsidian: ObsidianPort | None = None) -> None:
         self._llm = llm
+        self._obsidian = obsidian
         self._agentes: dict[str, Agente] = {}
         self._historial: list[MensajeChat] = []
         self._propuesta_activa: dict | None = None
@@ -90,18 +93,57 @@ class Hermes:
         logger.info("Agente registrado: %s → %s", clave, agente)
 
     async def procesar_mensaje(self, mensaje: str) -> Resultado:
-        """Procesa un mensaje del usuario y delega al agente correcto.
-
-        Este es el punto de entrada principal del sistema.
-        """
+        """Procesa un mensaje del usuario, delega al agente y persiste en Obsidian."""
         # Guardar mensaje del usuario en el historial
         self._historial.append(MensajeChat(role="user", content=mensaje))
 
         # Si hay una propuesta activa y el usuario responde
         if self._propuesta_activa:
-            return await self._manejar_confirmacion(mensaje)
+            resultado = await self._manejar_confirmacion(mensaje)
+        else:
+            resultado = await self._procesar_instruccion(mensaje, guardar_en_historial=True)
 
-        return await self._procesar_instruccion(mensaje, guardar_en_historial=True)
+        # Persistir automáticamente el turno en el Segundo Cerebro (Obsidian)
+        await self._persistir_dialogo_obsidian(mensaje, resultado.mensaje, resultado.agente)
+
+        return resultado
+
+    async def _persistir_dialogo_obsidian(self, user_msg: str, bot_msg: str, agente: str) -> None:
+        """Persiste automáticamente cada turno en Obsidian bajo la carpeta Conversaciones/."""
+        if not self._obsidian:
+            return
+        try:
+            hoy_str = datetime.now().strftime("%Y-%m-%d")
+            ahora_hora = datetime.now().strftime("%H:%M:%S")
+            ruta_relativa = f"Conversaciones/{hoy_str}.md"
+
+            try:
+                contenido_existente = await self._obsidian.leer_nota(ruta_relativa)
+            except Exception:
+                contenido_existente = (
+                    f"# 💬 Diario de Conversaciones — {hoy_str}\n\n"
+                    f"Registro automático del Segundo Cerebro (Agent IA).\n\n"
+                    f"---\n"
+                )
+
+            bloque_dialogo = (
+                f"\n### 🕒 {ahora_hora} — Miguel\n"
+                f"> {user_msg}\n\n"
+                f"### 🤖 {ahora_hora} — {agente}\n"
+                f"{bot_msg}\n\n"
+                f"---\n"
+            )
+
+            nota_actualizada = Nota(
+                id=f"chat_{hoy_str}",
+                titulo=hoy_str,
+                contenido=contenido_existente + bloque_dialogo,
+                area_id="Conversaciones",
+                tags=["chat", "dialogo", "segundo_cerebro", "hermes"],
+            )
+            await self._obsidian.escribir_nota(nota_actualizada)
+        except Exception as e:
+            logger.warning("No se pudo persistir el diálogo en Obsidian: %s", e)
 
     async def _procesar_instruccion(self, mensaje: str, *, guardar_en_historial: bool = True) -> Resultado:
         """Detecta la intención y ejecuta la instrucción delegando o respondiendo directamente."""

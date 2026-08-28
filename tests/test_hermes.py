@@ -241,3 +241,28 @@ async def test_hermes_segunda_propuesta_advierte_reemplazo():
     assert "reemplazada como foco activo" in res2.mensaje
     # El nuevo foco es Nota Dos
     assert hermes._propuesta_activa["propuesta_id"] == "prop-Nota_Dos"
+
+
+@pytest.mark.asyncio
+async def test_hermes_persiste_dialogos_en_obsidian():
+    """Verifica que cada turno conversacional se registre en Obsidian (Segundo Cerebro)."""
+    from unittest.mock import AsyncMock
+
+    llm = MockLLM()
+    mock_obsidian = AsyncMock()
+    mock_obsidian.leer_nota.side_effect = FileNotFoundError("No existe aún")
+
+    hermes = Hermes(llm=llm, obsidian=mock_obsidian)
+
+    resultado = await hermes.procesar_mensaje("Hola Hermes")
+
+    assert resultado.estado == EstadoResultado.EXITO
+    assert resultado.agente == "Hermes"
+
+    # Verificar que se escribió la nota en Obsidian
+    mock_obsidian.escribir_nota.assert_called_once()
+    nota_guardada = mock_obsidian.escribir_nota.call_args[0][0]
+    assert nota_guardada.area_id == "Conversaciones"
+    assert "Hola Hermes" in nota_guardada.contenido
+    assert "Hola, soy Hermes" in nota_guardada.contenido
+    assert "Diario de Conversaciones" in nota_guardada.contenido

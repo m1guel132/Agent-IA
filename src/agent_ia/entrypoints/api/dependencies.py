@@ -103,7 +103,7 @@ def get_hermes() -> Hermes:
     plan = AgentePlan(llm=llm_plan, notion=notion)
 
     # --- Orchestrator ---
-    hermes = Hermes(llm=llm_hermes)
+    hermes = Hermes(llm=llm_hermes, obsidian=obsidian)
     hermes.registrar_agente("curador", curador)
     hermes.registrar_agente("estudio", estudio)
     hermes.registrar_agente("sync", sync)
