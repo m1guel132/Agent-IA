@@ -430,6 +430,56 @@ Si solo necesitas agregar una tarea atómica sin desglose estratégico:
 \end{infobox}
 El sistema omite el procesamiento de LLM, ejecuta la inserción directa en la base de datos de \texttt{Tareas} de Notion y responde en menos de 300 ms.
 
+\subsection{4. Study Board y Repetición Espaciada SM-2 (\texttt{AgenteEstudio})}
+El módulo de estudio activo permite consolidar conceptos a largo plazo:
+
+\begin{infobox}{Ejemplo de Generación de Flashcards}
+\textbf{Usuario:} \textit{"Genera flashcards sobre el algoritmo de consenso Raft"}
+\end{infobox}
+
+\textbf{Flujo Operativo de Estudio:}
+\begin{itemize}
+    \item \textbf{Extracción Atómica (RF3.1):} Sintetiza pares de Pregunta y Respuesta concisos y los persiste en \texttt{data/study\_board.json}.
+    \item \textbf{Notas Cornell (RF3.3):} Con el comando \textit{"Crea una nota Cornell sobre X"}, estructura apuntes en Obsidian con ideas clave, notas y resumen.
+    \item \textbf{Sesión Interactiva Quiz SM-2 (RF3.4):} Al escribir \textit{"Iniciar repaso"}, el agente presenta tarjetas una por una. Al calificar de 0 a 5, el algoritmo recalibra el factor de facilidad e intervalo en días.
+\end{itemize}
+
+\subsection{5. Sincronización Proactiva y Webhooks (\texttt{AgenteSync})}
+Garantiza la consistencia continua entre las distintas herramientas del ecosistema:
+
+\begin{infobox}{Ejemplo de Sincronización y Alertas}
+\textbf{Usuario:} \textit{"Sincroniza mis notas de Notion con Obsidian y dime qué tareas vencen hoy"}
+\end{infobox}
+
+\textbf{Capacidades del AgenteSync (Fase 3):}
+\begin{itemize}
+    \item \textbf{Sincronización Bidireccional (RF1.1):} Rastrea hashes SHA-256 en \texttt{data/sync\_state.json} e indexa cambios en ChromaDB.
+    \item \textbf{Alertas Proactivas de Tareas (RF6.3):} Identifica tareas vencidas o con entrega en las próximas 48 horas.
+    \item \textbf{Gateway para Webhooks n8n:} Endpoints HTTP \texttt{POST /sync/ejecutar} y \texttt{POST /webhook/sync} para recibir eventos automáticos desde Telegram, Todoist o n8n.
+\end{itemize}
+
+% ====================================================================
+\section{Visualizador 3D Isométrico ("The Sims for AI Agents")}
+% ====================================================================
+
+El sistema incorpora un entorno espacial 3D interactivo accesible en \href{http://localhost:8000/sims}{http://localhost:8000/sims} o mediante el botón \textbf{\texttt{[ Oficina 3D | SIMS ]}} en la barra superior.
+
+\subsection{Estaciones de Trabajo y Gemelos Digitales}
+\begin{itemize}
+    \item \textbf{Desk 01 (Active Compute):} Puesto de mando ultrawide donde opera el avatar de \textbf{Hermes (Azul)}.
+    \item \textbf{The Vault (Secure Storage):} Bóveda acorazada donde el avatar de \textbf{AgenteCurador (Naranja)} resguarda notas y ChromaDB.
+    \item \textbf{Kanban Wall (Work Items):} Pizarra de cristal donde el avatar de \textbf{AgentePlan (Morado)} gestiona metas en cascada.
+    \item \textbf{Study Board (SM-2 Lab):} Biblioteca holográfica donde el avatar de \textbf{AgenteEstudio (Verde)} procesa flashcards.
+    \item \textbf{Security Gate (Access Control):} Pasarela óptica donde el avatar de \textbf{AgenteSync (Amarillo)} supervisa el DataMasker.
+\end{itemize}
+
+\subsection{Controles del Simulador 3D}
+\begin{itemize}
+    \item \textbf{Rotación y Zoom:} Clic izquierdo sostenido para orbitar en 360° y rueda del ratón para zoom.
+    \item \textbf{Inspección de Telemetría:} Al hacer clic sobre cualquier agente o estación se despliega la tarjeta inferior con \textit{Runtime}, \textit{Tokens consumidos}, \textit{Estado de ejecución} y barra de progreso.
+    \item \textbf{Modo Paseo e Iluminación:} Botones para activar el desplazamiento autónomo de los robots y alternar entre modo Día y Noche (\textit{Cyberpunk Dark-Glow}).
+\end{itemize}
+
 % ====================================================================
 \section{Sistema de Privacidad y Anonimización (\texttt{DataMasker})}
 % ====================================================================
@@ -492,7 +542,7 @@ Para garantizar la confidencialidad de la información cuando se utiliza el back
 \textbf{Comando} & \textbf{Acción} \\ \midrule
 \texttt{uv run agent-api} & Inicia el API Gateway de FastAPI y la interfaz web en \texttt{http://localhost:8000}. \\
 \texttt{uv run agent-hud} & Inicia el HUD de monitoreo en Streamlit en \texttt{http://localhost:8501}. \\
-\texttt{uv run pytest -v tests/} & Ejecuta la suite completa de 46 pruebas unitarias y de integración. \\
+\texttt{uv run pytest -v tests/} & Ejecuta la suite completa de 53 pruebas unitarias y de integración. \\
 \texttt{python scripts/sync\_notion\_map.py} & Re-escanea las 29 bases de datos de Notion y regenera la caché local. \\
 \texttt{ollama list} & Muestra los modelos de inteligencia artificial instalados localmente. \\ \bottomrule
 \end{tabularx}
