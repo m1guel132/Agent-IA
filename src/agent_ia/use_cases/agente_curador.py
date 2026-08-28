@@ -57,10 +57,22 @@ Responde en JSON con esta estructura:
 """
 
 
-class AgenteCurador(Agente):
-    """Agente especializado en curaduría del Segundo Cerebro.
+SYSTEM_PROMPT_CONSULTA = """Eres el consultor analítico del Segundo Cerebro de Miguel.
+Tu misión es responder de forma clara, natural, fluida y precisa a las consultas y preguntas de Miguel sobre sus notas y conocimiento acumulado.
 
-    Opera en modo revisión: propone cambios y espera confirmación.
+Directrices:
+1. Utiliza el contexto recuperado de sus notas (Obsidian, ChromaDB, Notion) para responder con exactitud.
+2. Si el usuario pide consultar un tema, sintetiza las ideas principales, conceptos clave y conexiones lógicas.
+3. Habla con tono natural, empático y estructurado (usando títulos, viñetas y Markdown limpio).
+4. Si no hay suficiente información en sus notas sobre lo que pregunta, explícalo con naturalidad y sugiérele qué conceptos podría documentar para cerrar esa brecha.
+"""
+
+
+class AgenteCurador(Agente):
+    """Agente especializado en curaduría y consulta del Segundo Cerebro.
+
+    Opera en modo revisión para crear notas (propone y espera confirmación),
+    y en modo RAG conversacional para consultas de conocimiento.
     """
 
     def __init__(
@@ -80,27 +92,32 @@ class AgenteCurador(Agente):
         self._propuestas_pendientes: dict[str, dict] = {}
 
     async def ejecutar(self, instruccion: str, contexto: dict | None = None) -> Resultado:
-        """Ejecuta una instrucción de curaduría.
-
-        Detecta la intención y delega al método correspondiente.
-        """
+        """Ejecuta una instrucción de curaduría o consulta de conocimiento."""
         ctx = contexto or {}
-        instruccion_lower = instruccion.lower()
+        instruccion_lower = instruccion.strip().lower()
 
-        # Si es una confirmación de propuesta pendiente
+        # 1. Si es una confirmación de propuesta pendiente
         if ctx.get("confirmar_propuesta"):
             return await self._aplicar_propuesta(ctx["confirmar_propuesta"])
 
         import re
-        
-        # Detectar intención priorizando comandos explícitos con regex (para evitar falsos positivos de "nota")
-        if re.search(r'\b(organiza|organizar|limpiar|inbox)\b', instruccion_lower):
+
+        # 2. Organizar inbox
+        if re.search(r'\b(organiza|organizar|limpiar|inbox|ordenar)\b', instruccion_lower) and not re.search(r'\b(anota|guarda|crea)\b', instruccion_lower):
             return await self._organizar_inbox()
-        elif re.search(r'\b(busca|buscar|encuentra)\b', instruccion_lower):
-            return await self._buscar_en_conocimiento(instruccion)
-        else:
-            # Por defecto, si no es organizar ni buscar, es una nota nueva
+
+        # 3. ¿Es una intención explícita de CAPTURAR / CREAR una nota nueva?
+        # Solo proponemos crear nota si el usuario claramente quiere capturar o guardar algo nuevo
+        patron_captura = r'^(anota(r)?|guarda(r)?|registra(r)?|apunta(r)?|crea(r)? una nota|nueva nota|toma nota|documenta(r)?)\b'
+        es_captura = bool(re.search(patron_captura, instruccion_lower)) or bool(
+            re.search(r'\b(anota esto|guardar nota|crear nota|apunta esto)\b', instruccion_lower)
+        )
+
+        if es_captura:
             return await self._proponer_nota(instruccion, ctx)
+
+        # 4. Para cualquier otra pregunta, búsqueda o consulta del Segundo Cerebro: RAG Conversacional
+        return await self._consultar_segundo_cerebro(instruccion, ctx)
 
     async def _proponer_nota(self, instruccion: str, contexto: dict) -> Resultado:
         """Crea una propuesta de nota categorizada (modo revisión)."""
@@ -257,25 +274,71 @@ class AgenteCurador(Agente):
             agente=self.nombre,
         )
 
-    async def _buscar_en_conocimiento(self, query: str) -> Resultado:
-        """Busca en el vector store por similitud semántica."""
-        resultados = await self._vector_store.buscar(query, n_results=5)
+    async def _consultar_segundo_cerebro(self, query: str, contexto: dict | None = None) -> Resultado:
+        """Realiza una consulta semántica y sintetiza una respuesta conversacional con el LLM."""
+        import re
 
-        if not resultados:
-            return Resultado(
-                estado=EstadoResultado.SIN_ACCION,
-                mensaje="🔍 No encontré resultados relevantes.",
-                agente=self.nombre,
+        # 1. Buscar en ChromaDB
+        try:
+            resultados_vector = await self._vector_store.buscar(query, n_results=5)
+        except Exception as e:
+            logger.warning("Error consultando vector store: %s", e)
+            resultados_vector = []
+
+        # 2. Buscar en Obsidian si hay archivos con nombres o áreas relevantes
+        notas_obsidian = []
+        try:
+            todas_notas = await self._obsidian.listar_notas()
+            palabras_clave = [p for p in re.findall(r'\w+', query.lower()) if len(p) > 3]
+            for n in todas_notas:
+                if any(k in n.lower() for k in palabras_clave):
+                    notas_obsidian.append(n)
+        except Exception:
+            pass
+
+        # 3. Construir contexto enriquecido para el LLM
+        fragmentos_contexto = []
+        if resultados_vector:
+            for r in resultados_vector:
+                fragmentos_contexto.append(f"[Fragmento de nota (score: {r.score:.2f})]:\n{r.content}")
+
+        if notas_obsidian:
+            fragmentos_contexto.append(f"[Archivos relacionados en Obsidian Vault]: {', '.join(notas_obsidian[:5])}")
+
+        texto_contexto = (
+            "\n\n---\n\n".join(fragmentos_contexto)
+            if fragmentos_contexto
+            else "No se encontraron notas directamente relacionadas en la base vectorial."
+        )
+
+        # 4. Sintetizar respuesta conversacional fluida
+        prompt = (
+            f"Contexto recuperado del Segundo Cerebro de Miguel:\n{texto_contexto}\n\n"
+            f"Pregunta o consulta de Miguel:\n{query}\n\n"
+            f"Responde a Miguel de manera conversacional, analítica, clara y directa:"
+        )
+
+        try:
+            response = await self._llm.generate(
+                prompt=prompt,
+                system=SYSTEM_PROMPT_CONSULTA,
+                temperature=0.3,
             )
-
-        mensaje = "🔍 **Resultados de búsqueda:**\n\n"
-        for i, r in enumerate(resultados, 1):
-            mensaje += f"{i}. {r.content[:120]}... (relevancia: {r.score:.0%})\n"
+            mensaje = response.content
+        except Exception as e:
+            logger.exception("Error al sintetizar respuesta de consulta")
+            mensaje = (
+                f"🔍 **Resultados encontrados:**\n\n"
+                + "\n".join(f"• {r.content[:150]}..." for r in resultados_vector[:3])
+            )
 
         return Resultado(
             estado=EstadoResultado.EXITO,
             mensaje=mensaje,
-            datos={"resultados": [{"id": r.id, "score": r.score} for r in resultados]},
+            datos={
+                "resultados_count": len(resultados_vector),
+                "archivos_obsidian": notas_obsidian[:5],
+            },
             agente=self.nombre,
         )
 

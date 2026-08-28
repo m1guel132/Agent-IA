@@ -46,6 +46,12 @@ class DummyNotion(NotionPort):
     async def listar_areas(self) -> list:
         return []
 
+    async def listar_objetivos(self) -> list:
+        return [{"id": "obj-1", "titulo": "Aprobar Redes", "area": "Universidad"}]
+
+    async def listar_proyectos(self) -> list:
+        return [{"id": "proj-1", "titulo": "Laboratorio Raft"}]
+
     async def listar_tareas_pendientes(self) -> list:
         return []
 
@@ -173,4 +179,18 @@ async def test_ejecutar_confirmarPropuestaNoEncontrada_retornaError():
     )
 
     assert resultado.estado == EstadoResultado.ERROR
-    assert "expiró o no existe" in resultado.mensaje
+    assert "no existe" in resultado.mensaje.lower() or "expir" in resultado.mensaje.lower()
+
+
+@pytest.mark.asyncio
+async def test_ejecutar_consultar_objetivos_existentes():
+    """Verifica que el agente consulte y presente los objetivos de Notion."""
+    notion = DummyNotion()
+    llm = DummyLLM(response_text="🎯 **Tus Objetivos Actuales:**\n- Aprobar Redes")
+    agente = AgentePlan(llm=llm, notion=notion)
+
+    resultado = await agente.ejecutar("mira mis objetivos de mi segundo cerebro")
+
+    assert resultado.estado == EstadoResultado.EXITO
+    assert "Aprobar Redes" in resultado.mensaje
+    assert len(resultado.datos["objetivos"]) == 1

@@ -23,28 +23,41 @@ from agent_ia.use_cases.agente import Agente, EstadoResultado, Resultado
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT_HERMES = """Eres Hermes, el orquestador central de Agent IA, el copiloto personal de gestión de conocimiento y estudio de Miguel.
+SYSTEM_PROMPT_HERMES = """Eres Hermes, el orquestador central y enrutador de intenciones de Agent IA.
+Tu tarea es clasificar la intención de Miguel y asignarla al agente especializado correspondiente.
 
-Tu personalidad:
-- Eres directo, eficiente y amigable.
-- Hablas en español por defecto, pero puedes cambiar a inglés si Miguel lo prefiere.
-- Siempre explicas qué agente se encargará de cada tarea.
-
-Tu trabajo es analizar los mensajes de Miguel y decidir qué agente debe actuar.
-Los agentes disponibles son:
-1. **AgenteCurador** — Organiza el Segundo Cerebro: notas, áreas, tags, inbox. Usa este agente cuando Miguel quiera anotar algo, organizar notas, buscar en su conocimiento, o cuando mencione el Segundo Cerebro.
-2. **AgenteEstudio** — Study Board y repetición espaciada. Usa SOLO cuando Miguel hable de repasar tarjetas, cuestionarios, o técnicas de estudio (ej. Cornell).
-3. **AgenteSync** — Sincronización entre plataformas (Notion, Obsidian, Todoist, Calendar). Usa cuando pida sincronizar o verificar consistencia.
-4. **AgentePlan** — Estratega de metas y planificación. Usa cuando hable de tareas, deadlines, o de CREAR PLANES para mejorar académicamente o personalmente, definiendo objetivos y proyectos.
-
-Si el mensaje es una conversación general (saludo, pregunta sobre el sistema, etc.), responde tú directamente sin delegar.
+Agentes disponibles:
+1. **plan** — Estratega de metas y tareas. Usa este agente cuando Miguel:
+   - Pregunte o consulte por sus objetivos, metas, proyectos o planes existentes (ej. "mira mis objetivos", "cuáles son mis metas", "qué proyectos tengo", "mis planes").
+   - Quiera crear planes estratégicos o definir nuevas metas de estudio/vida.
+   - Pida agregar tareas a Notion (ej. "agrega una tarea: ...").
+2. **curador** — Segundo Cerebro (Notas y Conocimiento). Usa este agente cuando Miguel:
+   - Quiera capturar o anotar nueva información (ej. "anota esto...", "guarda esta nota...").
+   - Quiera consultar, buscar o preguntar sobre notas, conceptos, resúmenes o temas de su Segundo Cerebro (ej. "busca notas de...", "qué tengo sobre X", "consulta de mi segundo cerebro").
+   - Pida organizar o limpiar el inbox.
+3. **estudio** — Study Board y Repetición Espaciada. Usa SOLO cuando Miguel:
+   - Hable de flashcards, tarjetas de estudio, notas Cornell o sesiones de repaso / quiz SM-2.
+4. **sync** — Sincronización y alertas. Usa cuando Miguel:
+   - Pida sincronizar Notion con Obsidian o verificar consistencia.
+   - Pregunte por tareas vencidas o alertas de deadlines.
+5. **hermes** — Conversación general, saludos, preguntas de seguimiento, charla libre o consultas reflexivas.
 
 Responde SIEMPRE en JSON con esta estructura exacta:
 {
     "agente": "curador|estudio|sync|plan|hermes",
-    "instruccion_para_agente": "instrucción procesada para el agente, o tu respuesta directa si agente=hermes",
-    "razon": "por qué elegiste ese agente"
+    "instruccion_para_agente": "instrucción procesada para el agente o consulta",
+    "razon": "breve explicación de la elección"
 }
+"""
+
+SYSTEM_PROMPT_HERMES_CONVERSACIONAL = """Eres Hermes, el orquestador inteligente y copiloto personal de Agent IA de Miguel.
+
+Tu personalidad:
+- Eres natural, perspicaz, empático, directo y altamente competente.
+- Tienes memoria de la conversación y recuerdas lo que Miguel te ha dicho en turnos anteriores para mantener un hilo fluido y coherente.
+- Hablas en español con fluidez impecable, usando Markdown claro, legible y profesional.
+- Conoces a la perfección el ecosistema de Miguel: su Segundo Cerebro (Notion + Obsidian), su flota de agentes (Curador, Estudio, Sync, Planificador), y sus metas académicas y personales.
+- Cuando Miguel dialogue contigo, responde con calidez, inteligencia contextual y claridad, orientándolo proactivamente.
 """
 
 SYSTEM_PROMPT_CONFIRMACION = """Eres Hermes, el orquestador central de Agent IA.
@@ -91,6 +104,10 @@ class Hermes:
         """Registra un agente especializado en el orquestador."""
         self._agentes[clave] = agente
         logger.info("Agente registrado: %s → %s", clave, agente)
+
+    def obtener_agente(self, clave: str) -> Agente | None:
+        """Obtiene un agente registrado por su clave."""
+        return self._agentes.get(clave)
 
     async def procesar_mensaje(self, mensaje: str) -> Resultado:
         """Procesa un mensaje del usuario, delega al agente y persiste en Obsidian."""
@@ -159,19 +176,47 @@ class Hermes:
         agente_clave = routing.get("agente", "hermes")
         instruccion = routing.get("instruccion_para_agente", mensaje)
 
-        # Si Hermes responde directamente
+        # Si Hermes responde directamente (conversación natural con memoria)
         if agente_clave == "hermes":
+            respuesta_fluida = await self._generar_respuesta_conversacional(mensaje)
             resultado = Resultado(
                 estado=EstadoResultado.EXITO,
-                mensaje=instruccion,
+                mensaje=respuesta_fluida,
                 agente="Hermes",
             )
             if guardar_en_historial:
                 self._guardar_respuesta(resultado)
             return resultado
 
-        # Delegar al agente correspondiente
-        return await self._delegar(agente_clave, instruccion, guardar_en_historial=guardar_en_historial)
+        # Delegar al agente correspondiente pasando contexto conversacional
+        return await self._delegar(agente_clave, instruccion, mensaje_original=mensaje, guardar_en_historial=guardar_en_historial)
+
+    async def _generar_respuesta_conversacional(self, mensaje: str) -> str:
+        """Genera una respuesta conversacional fluida, natural y con memoria de diálogo."""
+        historial_reciente = self._historial[-10:]  # Últimos 5 intercambios
+        lineas_contexto = []
+        for m in historial_reciente[:-1]:  # Excluir el mensaje actual ya presente
+            autor = "Miguel" if m.role == "user" else f"Hermes"
+            lineas_contexto.append(f"{autor}: {m.content}")
+
+        contexto_dialogo = "\n".join(lineas_contexto) if lineas_contexto else "Inicio de la conversación."
+
+        prompt = (
+            f"Historial reciente de la conversación:\n{contexto_dialogo}\n\n"
+            f"Mensaje actual de Miguel:\n{mensaje}\n\n"
+            f"Responde de forma natural, inteligente, directa y fluida:"
+        )
+
+        try:
+            response = await self._llm.generate(
+                prompt=prompt,
+                system=SYSTEM_PROMPT_HERMES_CONVERSACIONAL,
+                temperature=0.5,
+            )
+            return response.content
+        except Exception as e:
+            logger.warning("Error generando diálogo conversacional: %s", e)
+            return f"Hola Miguel, estoy aquí para ayudarte con tu Segundo Cerebro y tus metas. ¿En qué trabajamos hoy?"
 
     async def _detectar_intencion(self, mensaje: str) -> dict:
         """Usa el LLM para determinar qué agente debe actuar."""
@@ -194,7 +239,6 @@ class Hermes:
             return json.loads(response.content)
         except json.JSONDecodeError:
             logger.warning("LLM no devolvió JSON válido: %s", response.content[:200])
-            # Fallback: intentar responder directamente
             return {
                 "agente": "hermes",
                 "instruccion_para_agente": response.content,
@@ -202,7 +246,7 @@ class Hermes:
             }
 
     async def _delegar(
-        self, agente_clave: str, instruccion: str, *, guardar_en_historial: bool = True
+        self, agente_clave: str, instruccion: str, *, mensaje_original: str = "", guardar_en_historial: bool = True
     ) -> Resultado:
         """Delega la instrucción al agente correspondiente (RF5.2: fallas aisladas)."""
         agente = self._agentes.get(agente_clave)
@@ -218,7 +262,11 @@ class Hermes:
             return resultado
 
         try:
-            resultado = await agente.ejecutar(instruccion)
+            contexto_delegacion = {
+                "historial": self.obtener_historial(),
+                "mensaje_original": mensaje_original or instruccion,
+            }
+            resultado = await agente.ejecutar(instruccion, contexto=contexto_delegacion)
         except Exception as e:
             # RF5.2: falla silenciosa — no bloquea al orquestador
             logger.exception("Error en agente %s", agente_clave)

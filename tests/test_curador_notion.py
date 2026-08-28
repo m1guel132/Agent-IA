@@ -124,6 +124,12 @@ class FakeNotion(NotionPort):
     async def listar_areas(self) -> list[Area]:
         return []
 
+    async def listar_objetivos(self) -> list[dict]:
+        return []
+
+    async def listar_proyectos(self) -> list[dict]:
+        return []
+
     async def crear_proyecto(
         self, titulo: str, relaciones: dict[str, str] | None = None
     ) -> str:
@@ -233,3 +239,28 @@ async def test_curador_fallo_notion_revierte_propuesta():
 
     # 5. Validar que NO se indexó en ChromaDB debido al fallo previo
     assert len(vector_store.indexed_docs) == 0
+
+
+@pytest.mark.asyncio
+async def test_curador_consultar_segundo_cerebro_rag():
+    """Verifica que consultas y preguntas invoquen el motor RAG conversacional en lugar de proponer notas."""
+    llm = FakeLLM()
+    obsidian = FakeObsidian()
+    vector_store = FakeVectorStore()
+    notion = FakeNotion()
+
+    curador = AgenteCurador(
+        llm=llm,
+        obsidian=obsidian,
+        vector_store=vector_store,
+        notion=notion,
+    )
+
+    # Consulta que NO es una orden de captura
+    resultado = await curador.ejecutar("¿Qué notas tengo sobre el protocolo Raft y sistemas distribuidos?")
+
+    assert resultado.estado == EstadoResultado.EXITO
+    assert resultado.agente == "AgenteCurador"
+    # No debe crear una propuesta de nota
+    assert resultado.accion_pendiente is None
+    assert "propuesta de nota" not in resultado.mensaje.lower()

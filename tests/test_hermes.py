@@ -11,16 +11,14 @@ class MockLLM(LLMPort):
     """Fake LLM que diferencia explícitamente entre clasificación de confirmación y enrutamiento."""
 
     async def generate(self, prompt: str, *, system: str = "", temperature: float = 0.7) -> LLMResponse:
-        # 1. ¿Es una llamada de clasificación de confirmación? (Hueco 1: inspección explícita de system)
+        # 1. ¿Es una llamada de clasificación de confirmación?
         if "confirmar|rechazar|otro" in system or "confirmación" in system.lower():
-            # Extraer respuesta del usuario del prompt
             texto_usuario = prompt.lower()
             if 'respuesta del usuario: "' in texto_usuario:
                 texto_usuario = texto_usuario.split('respuesta del usuario: "')[-1].rstrip('"').strip()
 
             palabras = set(re.findall(r'\b\w+\b', texto_usuario))
             
-            # Chequear confirmaciones (palabras o frases como "dale, va")
             if any(w in palabras for w in ["sí", "si", "dale", "va", "confirmo", "adelante", "ok", "yes", "correcto"]):
                 content = '{"intencion": "confirmar", "razon": "usuario aprueba la propuesta"}'
             elif any(w in palabras for w in ["no", "cancelar", "cancela", "nope", "rechazar"]):
@@ -30,7 +28,11 @@ class MockLLM(LLMPort):
             
             return LLMResponse(content=content, model="mock-fast")
 
-        # 2. Es una llamada de enrutamiento general de Hermes
+        # 2. ¿Es una llamada de generación conversacional directa de Hermes?
+        if "copiloto personal" in system.lower() or "conversacional" in system.lower():
+            return LLMResponse(content="Hola, soy Hermes", model="mock-fast")
+
+        # 3. Es una llamada de enrutamiento de intenciones de Hermes
         mensaje_actual = prompt.split("Mensaje actual de Miguel:")[-1].lower()
         
         if "organiza el inbox" in mensaje_actual:

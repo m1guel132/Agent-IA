@@ -58,6 +58,14 @@ class NotionPort(ABC):
     async def listar_areas(self) -> list[Area]:
         """Lista todas las áreas del Segundo Cerebro."""
 
+    @abstractmethod
+    async def listar_objetivos(self) -> list[dict]:
+        """Lista todos los objetivos registrados en Notion."""
+
+    @abstractmethod
+    async def listar_proyectos(self) -> list[dict]:
+        """Lista todos los proyectos registrados en Notion."""
+
     # --- Creación de Entidades Dinámicas (Plan Estratégico) ---
 
     @abstractmethod

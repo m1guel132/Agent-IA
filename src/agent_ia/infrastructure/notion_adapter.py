@@ -454,6 +454,70 @@ class NotionAdapter(NotionPort):
 
         return areas
 
+    # ── Objetivos & Proyectos ────────────────────────────────────
+
+    async def listar_objetivos(self) -> list[dict]:
+        """Lista todos los objetivos registrados en Notion (base 'Objetivos')."""
+        try:
+            db_id = await self._obtener_db_id("Objetivos")
+            resultados = await self.consultar_database(db_id)
+            objetivos = []
+
+            for page in resultados:
+                try:
+                    props = page.get("properties", {})
+                    title_prop = props.get("Name", props.get("title", props.get("Nombre", props.get("Objetivo", {}))))
+                    titulo = ""
+                    if title_prop and "title" in title_prop:
+                        titulo = "".join(t.get("plain_text", "") for t in title_prop["title"])
+
+                    area = ""
+                    area_prop = props.get("Area", props.get("Área", {}))
+                    if area_prop and "select" in area_prop and area_prop["select"]:
+                        area = area_prop["select"].get("name", "")
+
+                    if titulo:
+                        objetivos.append({
+                            "id": page["id"],
+                            "titulo": titulo,
+                            "area": area,
+                        })
+                except Exception:
+                    continue
+
+            return objetivos
+        except Exception as e:
+            logger.warning("Error consultando base de Objetivos en Notion: %s", e)
+            return []
+
+    async def listar_proyectos(self) -> list[dict]:
+        """Lista todos los proyectos registrados en Notion (base 'Proyectos')."""
+        try:
+            db_id = await self._obtener_db_id("Proyectos")
+            resultados = await self.consultar_database(db_id)
+            proyectos = []
+
+            for page in resultados:
+                try:
+                    props = page.get("properties", {})
+                    title_prop = props.get("Name", props.get("title", props.get("Nombre", props.get("Proyecto", {}))))
+                    titulo = ""
+                    if title_prop and "title" in title_prop:
+                        titulo = "".join(t.get("plain_text", "") for t in title_prop["title"])
+
+                    if titulo:
+                        proyectos.append({
+                            "id": page["id"],
+                            "titulo": titulo,
+                        })
+                except Exception:
+                    continue
+
+            return proyectos
+        except Exception as e:
+            logger.warning("Error consultando base de Proyectos en Notion: %s", e)
+            return []
+
     # ── Tareas ──────────────────────────────────────────────────
 
     async def listar_tareas_pendientes(self) -> list[Tarea]:

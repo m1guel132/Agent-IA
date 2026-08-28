@@ -44,6 +44,12 @@ Responde SIEMPRE en JSON con esta estructura exacta:
 }
 """
 
+SYSTEM_PROMPT_PLAN_CONSULTA = """Eres el AgentePlan de Agent IA, el estratega personal de metas y proyectos de Miguel.
+Tu objetivo es presentar de forma clara, motivadora, elegante y bien estructurada los objetivos, proyectos y metas que Miguel tiene en su Segundo Cerebro (Notion).
+Habla con tono proactivo, fluido y conversacional.
+"""
+
+
 class AgentePlan(Agente):
     """AgentePlan — planificación y gestión estratégica en Notion."""
 
@@ -55,18 +61,83 @@ class AgentePlan(Agente):
 
     async def ejecutar(self, instruccion: str, contexto: dict | None = None) -> Resultado:
         ctx = contexto or {}
-        
+        instruccion_lower = instruccion.strip().lower()
+
         # 1. ¿Es una confirmación de un plan pendiente?
         if ctx.get("confirmar_propuesta"):
             return await self._aplicar_propuesta(ctx["confirmar_propuesta"])
 
-        # 2. ¿Es una creación rápida de tarea? (Fast-path sin LLM)
-        instruccion_lower = instruccion.strip().lower()
+        # 2. ¿Es una consulta de objetivos / metas / proyectos existentes?
+        # e.g. "mira mis objetivos", "cuáles son mis metas", "qué metas tengo", "lista mis proyectos"
+        es_consulta_objetivos = bool(
+            re.search(r'\b(mira|ver|mostrar|cu[aá]les son|qu[eé] (tengo|hay)|lista(r)?|dime|consultar)\b.*\b(objetivos|metas|proyectos|planes)\b', instruccion_lower)
+        ) or ("objetivos" in instruccion_lower and not re.search(r'\b(crea|agrega|nuevo|planifica|diseña)\b', instruccion_lower))
+
+        if es_consulta_objetivos:
+            return await self._consultar_objetivos_y_metas(instruccion)
+
+        # 3. ¿Es una creación rápida de tarea? (Fast-path sin LLM)
         if re.match(r'^(agrega(r)? (una )?tarea|tarea:|recu[eé]rdame que|a[ñn]ade)', instruccion_lower):
             return await self._creacion_rapida_tarea(instruccion)
 
-        # 3. Planificación estratégica con LLM
+        # 4. Planificación estratégica con LLM
         return await self._proponer_plan_estrategico(instruccion)
+
+    async def _consultar_objetivos_y_metas(self, instruccion: str) -> Resultado:
+        """Consulta los objetivos y proyectos registrados en Notion y los resume conversacionalmente."""
+        try:
+            objetivos = await self._notion.listar_objetivos() if hasattr(self._notion, "listar_objetivos") else []
+            proyectos = await self._notion.listar_proyectos() if hasattr(self._notion, "listar_proyectos") else []
+        except Exception as e:
+            logger.warning("Error consultando Notion para objetivos: %s", e)
+            objetivos, proyectos = [], []
+
+        if not objetivos and not proyectos:
+            mensaje = (
+                "🎯 **Tus Objetivos en el Segundo Cerebro:**\n\n"
+                "Actualmente no tienes objetivos activos registrados en tu base de Notion.\n\n"
+                "💡 *¿Te gustaría que diseñemos un plan estratégico para alguna meta académica o personal?* "
+                "Solo dime, por ejemplo: *'Quiero preparar mi examen de Redes'* o *'Crear un plan para dominar Rust'*."
+            )
+            return Resultado(
+                estado=EstadoResultado.EXITO,
+                mensaje=mensaje,
+                datos={"objetivos": [], "proyectos": []},
+                agente=self.nombre,
+            )
+
+        contexto_notion = "Objetivos registrados en Notion:\n" + "\n".join(
+            f"- 🎯 {o['titulo']} (Área: {o.get('area', 'General')})" for o in objetivos
+        )
+        if proyectos:
+            contexto_notion += "\n\nProyectos activos vinculados:\n" + "\n".join(
+                f"- 📁 {p['titulo']}" for p in proyectos
+            )
+
+        prompt = (
+            f"{contexto_notion}\n\n"
+            f"Pregunta de Miguel: {instruccion}\n\n"
+            f"Presenta a Miguel sus objetivos y proyectos de forma clara, motivadora y estructurada:"
+        )
+
+        try:
+            response = await self._llm.generate(
+                prompt=prompt,
+                system=SYSTEM_PROMPT_PLAN_CONSULTA,
+                temperature=0.3,
+            )
+            mensaje = response.content
+        except Exception:
+            mensaje = "🎯 **Tus Objetivos en el Segundo Cerebro:**\n\n" + "\n".join(
+                f"• **{o['titulo']}** (Área: `{o.get('area', 'General')}`)" for o in objetivos
+            )
+
+        return Resultado(
+            estado=EstadoResultado.EXITO,
+            mensaje=mensaje,
+            datos={"objetivos": objetivos, "proyectos": proyectos},
+            agente=self.nombre,
+        )
 
     async def _creacion_rapida_tarea(self, instruccion: str) -> Resultado:
         """Modo antiguo: crea una tarea directamente usando regex/parsing simple."""
