@@ -111,8 +111,8 @@ async def test_agente_sync_alertas_tareas_vencidas():
         sync_adapter = JsonSyncAdapter(file_path=temp_path)
         mock_notion = AsyncMock()
 
-        ayer = datetime.now(timezone.utc) - timedelta(days=2)
-        hoy = datetime.now(timezone.utc)
+        hoy_utc = datetime.now(timezone.utc).date()
+        ayer_utc = hoy_utc - timedelta(days=2)
 
         mock_notion.listar_tareas_pendientes.return_value = [
             Tarea(
@@ -120,14 +120,14 @@ async def test_agente_sync_alertas_tareas_vencidas():
                 titulo="Entrega Proyecto Final",
                 estado=EstadoTarea.PENDIENTE,
                 prioridad=PrioridadTarea.OBLIGATORIA,
-                fecha_limite=ayer,
+                fecha_limite=ayer_utc,
             ),
             Tarea(
                 id="t2",
                 titulo="Revisar Flashcards Redes",
                 estado=EstadoTarea.PENDIENTE,
                 prioridad=PrioridadTarea.IMPORTANTE,
-                fecha_limite=hoy,
+                fecha_limite=hoy_utc,
             ),
         ]
 

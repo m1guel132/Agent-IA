@@ -110,7 +110,7 @@ class AgenteSync(Agente):
                             doc_id = f"obs_{hashlib.md5(ruta.encode()).hexdigest()[:10]}"
                             await self.vector_store.indexar(
                                 doc_id=doc_id,
-                                texto=contenido,
+                                content=contenido,
                                 metadata={"ruta": ruta, "fuente": "obsidian", "tipo": "nota"},
                             )
 
@@ -156,7 +156,7 @@ class AgenteSync(Agente):
             return []
 
         alertas = []
-        hoy = date.today()
+        hoy = datetime.now(timezone.utc).date()
 
         try:
             tareas = await self.notion.listar_tareas_pendientes()
