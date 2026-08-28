@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Agent IA — Copiloto Inteligente</title>
   <meta name="description" content="Copiloto de gestión de conocimiento y estudio impulsado por IA y agentes autónomos.">
-  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/styles.css?v=2.2">
   <!-- Markdown & Sanitization via CDN for rich assistant formatting -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
@@ -28,25 +28,25 @@
       <div class="sidebar-content">
         <!-- AGENTS FLEET -->
         <div class="sidebar-section">
-          <h3>Flota de Agentes</h3>
+          <h3>Flota de Agentes (5)</h3>
           <ul class="agent-list" id="agentFleetList">
-            <li class="agent-item active" data-agent="hermes">
+            <li class="agent-item active" data-agent="hermes" title="Clic para interactuar con Hermes">
               <span class="agent-dot hermes"></span>
               <div class="agent-details">
                 <span class="agent-name">Hermes</span>
-                <span class="agent-role">Orquestador Principal</span>
+                <span class="agent-role">Orquestador Central</span>
               </div>
               <span class="agent-status-badge">Activo</span>
             </li>
-            <li class="agent-item" data-agent="curador">
+            <li class="agent-item" data-agent="curador" title="Clic para capturar y estructurar notas">
               <span class="agent-dot curador"></span>
               <div class="agent-details">
                 <span class="agent-name">Curador</span>
-                <span class="agent-role">Captura & Taxonomía</span>
+                <span class="agent-role">Segundo Cerebro & Tags</span>
               </div>
               <span class="agent-status-badge">Listo</span>
             </li>
-            <li class="agent-item" data-agent="estudio">
+            <li class="agent-item" data-agent="estudio" title="Clic para flashcards y método Cornell">
               <span class="agent-dot estudio"></span>
               <div class="agent-details">
                 <span class="agent-name">Estudio</span>
@@ -54,19 +54,19 @@
               </div>
               <span class="agent-status-badge">Listo</span>
             </li>
-            <li class="agent-item" data-agent="sync">
+            <li class="agent-item" data-agent="sync" title="Clic para sincronizar Notion y Obsidian">
               <span class="agent-dot sync"></span>
               <div class="agent-details">
-                <span class="agent-name">Sync Notion</span>
-                <span class="agent-role">Persistencia & BBDD</span>
+                <span class="agent-name">Agente Sync</span>
+                <span class="agent-role">Notion ↔ Obsidian & Tareas</span>
               </div>
-              <span class="agent-status-badge">Sincronizado</span>
+              <span class="agent-status-badge">Listo</span>
             </li>
-            <li class="agent-item" data-agent="plan">
+            <li class="agent-item" data-agent="plan" title="Clic para planes estratégicos y metas">
               <span class="agent-dot plan"></span>
               <div class="agent-details">
                 <span class="agent-name">Planificador</span>
-                <span class="agent-role">Rutas de Aprendizaje</span>
+                <span class="agent-role">Metas, Proyectos & Tareas</span>
               </div>
               <span class="agent-status-badge">Listo</span>
             </li>
@@ -113,8 +113,8 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>
           </button>
           <div class="chat-title-info">
-            <span class="chat-title">Hermes Hub</span>
-            <span class="chat-subtitle" id="activeAgentSubtitle">Copiloto Inteligente listo para procesar tus ideas</span>
+            <span class="chat-title">Hermes Fleet Hub</span>
+            <span class="chat-subtitle" id="activeAgentSubtitle">Orquestador inteligente con 5 agentes conectados</span>
           </div>
         </div>
 
@@ -138,7 +138,7 @@
         <div class="welcome-card" id="welcomeCard">
           <div class="welcome-avatar">⚡</div>
           <h2>¿En qué trabajamos hoy, Miguel?</h2>
-          <p>Puedo ayudarte a registrar notas estructuradas, planificar repasos de estudio espaciado o sincronizar tu base de conocimiento en Notion.</p>
+          <p>La flota de 5 agentes especializados está lista para capturar conocimiento, planificar metas estratégicas, generar flashcards SM-2 o sincronizar tu Segundo Cerebro.</p>
         </div>
       </div>
 
@@ -146,17 +146,23 @@
       <div class="chat-bottom">
         <!-- SUGGESTION PILLS -->
         <div class="suggestion-pills" id="suggestionPills">
-          <button class="pill-btn" data-prompt="📚 ¿Qué repasamos hoy?">
-            <span>📚</span> ¿Qué repasamos hoy?
-          </button>
-          <button class="pill-btn" data-prompt="📥 Guardar nota rápida: ">
-            <span>📥</span> Guardar nota rápida
-          </button>
-          <button class="pill-btn" data-prompt="🗺️ Muéstrame mi plan de estudio actual">
-            <span>🗺️</span> Plan de estudio
-          </button>
           <button class="pill-btn" data-prompt="⚡ ¿Cuál es el estado de todos los agentes?">
-            <span>⚡</span> Estado de agentes
+            <span>⚡</span> Estado de Flota
+          </button>
+          <button class="pill-btn" data-prompt="📥 Anota esto: ">
+            <span>🟠</span> Curador (Nota)
+          </button>
+          <button class="pill-btn" data-prompt="📚 Iniciar repaso de flashcards">
+            <span>🔵</span> Estudio (SM-2)
+          </button>
+          <button class="pill-btn" data-prompt="🔄 Sincronizar mis notas de Notion con Obsidian">
+            <span>🟢</span> Sync (Notion ↔ Obsidian)
+          </button>
+          <button class="pill-btn" data-prompt="🔔 ¿Qué tareas tengo vencidas o por vencer?">
+            <span>⚠️</span> Alertas de Tareas
+          </button>
+          <button class="pill-btn" data-prompt="🎯 Quiero un plan estratégico para: ">
+            <span>🟣</span> Planificador
           </button>
         </div>
 
@@ -182,54 +188,60 @@
       <div class="panel-header">
         <h2>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/></svg>
-          Conocimiento & Sync
+          Panel de Control Multi-Agente
         </h2>
       </div>
 
       <div class="panel-body">
-        <!-- NOTION SYNC CARD -->
+        <!-- SYNC LIVE CARD -->
         <div class="panel-card">
           <div class="panel-card-title">
-            <span>Notion Database</span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-          </div>
-          <div class="notion-status-indicator" id="notionStatusBox">
+            <span>Sincronización (AgenteSync)</span>
             <span class="agent-dot sync"></span>
-            <span>API Gateway Activa (:8000)</span>
           </div>
+          <p style="font-size: 0.76rem; color: var(--text-secondary); margin-bottom: 0.6rem;">
+            Bidireccional Notion ↔ Obsidian & Hash SHA-256
+          </p>
+          <button class="pill-btn" id="triggerSyncBtn" style="width: 100%; justify-content: center; background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.4); color: #34d399;">
+            <span>🔄</span> Ejecutar Sincronización Ahora
+          </button>
         </div>
 
         <!-- REPASO METRICS -->
         <div class="panel-card">
           <div class="panel-card-title">
-            <span>Repaso Espaciado</span>
-            <span style="font-size: 0.65rem; color: var(--text-tertiary);">SM-2</span>
+            <span>Study Board (AgenteEstudio)</span>
+            <span style="font-size: 0.65rem; color: var(--agent-estudio); font-weight: 600;">SM-2</span>
           </div>
-          <div class="stat-grid">
+          <div class="stat-grid" style="margin-bottom: 0.5rem;">
             <div class="stat-item">
-              <span class="stat-value" id="statDueCards">--</span>
-              <span class="stat-label">Pendientes hoy</span>
+              <span class="stat-value" id="statDueCards">Listo</span>
+              <span class="stat-label">Modo Repaso</span>
             </div>
             <div class="stat-item">
-              <span class="stat-value" id="statMastered">--</span>
-              <span class="stat-label">Dominados</span>
+              <span class="stat-value" id="statMastered">Cornell</span>
+              <span class="stat-label">Plantillas</span>
             </div>
           </div>
+          <button class="pill-btn" id="triggerQuizBtn" style="width: 100%; justify-content: center; background: rgba(59, 130, 246, 0.15); border-color: rgba(59, 130, 246, 0.4); color: #60a5fa;">
+            <span>📚</span> Iniciar Quiz Rápido
+          </button>
         </div>
 
-        <!-- ACTIVE SYSTEM OVERVIEW -->
+        <!-- SEGUNDO CEREBRO & OBSIDIAN -->
         <div class="panel-card">
           <div class="panel-card-title">
-            <span>Orquestación</span>
+            <span>Segundo Cerebro (Obsidian)</span>
+            <span class="agent-dot curador"></span>
           </div>
-          <p style="font-size: 0.78rem; color: var(--text-secondary); line-height: 1.5;">
-            Hermes clasifica tu intención automáticamente y delega al agente especialista indicado.
+          <p style="font-size: 0.76rem; color: var(--text-secondary); line-height: 1.4;">
+            Guardado automático de notas y registro cronológico de todas las conversaciones en tu Vault.
           </p>
         </div>
       </div>
     </aside>
   </div>
 
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=2.2"></script>
 </body>
 </html>

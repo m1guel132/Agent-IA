@@ -253,10 +253,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const items = list.querySelectorAll('.agent-item');
     items.forEach(item => {
       const agentKey = item.getAttribute('data-agent');
-      if (agentes[agentKey]) {
+      if (agentes[agentKey] || agentKey === 'hermes') {
         const badge = item.querySelector('.agent-status-badge');
         if (badge) {
-          badge.textContent = 'Activo';
+          badge.textContent = 'En Línea';
           badge.style.color = 'var(--status-online)';
         }
       }
@@ -264,7 +264,85 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ─────────────────────────────────────────────────────────────
-  // 5. Input Interactions & Shortcuts
+  // 5. Agent List Click Routing
+  // ─────────────────────────────────────────────────────────────
+  const fleetList = document.getElementById('agentFleetList');
+  if (fleetList) {
+    fleetList.addEventListener('click', (e) => {
+      const item = e.target.closest('.agent-item');
+      if (!item) return;
+
+      // Update active styling
+      fleetList.querySelectorAll('.agent-item').forEach(el => el.classList.remove('active'));
+      item.classList.add('active');
+
+      const agentKey = item.dataset.agent;
+      const promptsMap = {
+        'hermes': '⚡ ¿Cuál es el estado de todos los agentes?',
+        'curador': '📥 Anota esto: ',
+        'estudio': '📚 Iniciar repaso de flashcards',
+        'sync': '🔄 Sincronizar mis notas de Notion con Obsidian',
+        'plan': '🎯 Quiero un plan estratégico para: '
+      };
+
+      const starter = promptsMap[agentKey] || 'Hola';
+      if (starter.endsWith(': ')) {
+        promptInput.value = starter;
+        promptInput.focus();
+        adjustTextareaHeight();
+      } else {
+        sendMessage(starter);
+      }
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 6. Right Panel Direct Actions (Sync & Quiz)
+  // ─────────────────────────────────────────────────────────────
+  const triggerSyncBtn = document.getElementById('triggerSyncBtn');
+  if (triggerSyncBtn) {
+    triggerSyncBtn.addEventListener('click', async () => {
+      if (isGenerating) return;
+      isGenerating = true;
+      triggerSyncBtn.disabled = true;
+      triggerSyncBtn.innerHTML = '<span>⏳</span> Sincronizando...';
+
+      renderUserMessage('🔄 Ejecutando sincronización bidireccional (Notion ↔ Obsidian)...');
+      showTypingIndicator('AgenteSync');
+
+      try {
+        const resp = await fetch(`${API_BASE}/sync/ejecutar`, { method: 'POST' });
+        const data = await resp.json();
+        removeTypingIndicator();
+        renderAssistantMessage({
+          mensaje: data.mensaje || 'Sincronización completada.',
+          agente: 'AgenteSync',
+          timestamp: new Date().toISOString()
+        });
+      } catch (err) {
+        removeTypingIndicator();
+        renderAssistantMessage({
+          mensaje: `❌ Error al sincronizar: ${err.message}`,
+          agente: 'AgenteSync',
+          timestamp: new Date().toISOString()
+        });
+      } finally {
+        isGenerating = false;
+        triggerSyncBtn.disabled = false;
+        triggerSyncBtn.innerHTML = '<span>🔄</span> Ejecutar Sincronización Ahora';
+      }
+    });
+  }
+
+  const triggerQuizBtn = document.getElementById('triggerQuizBtn');
+  if (triggerQuizBtn) {
+    triggerQuizBtn.addEventListener('click', () => {
+      sendMessage('📚 Iniciar repaso de flashcards');
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 7. Input Interactions & Shortcuts
   // ─────────────────────────────────────────────────────────────
   function adjustTextareaHeight() {
     promptInput.style.height = 'auto';
