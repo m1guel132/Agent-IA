@@ -50,14 +50,14 @@
 
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[L]{\footnotesize Gwen OS --- Especificación de Requerimientos}
+\fancyhead[L]{\footnotesize Agent IA --- Especificación de Requerimientos}
 \fancyhead[R]{\footnotesize \thepage}
 \renewcommand{\headrulewidth}{0.3pt}
 
 \titleformat{\section}{\Large\bfseries}{\thesection}{0.6em}{}
 \titleformat{\subsection}{\large\bfseries}{\thesubsection}{0.6em}{}
 
-\title{\textbf{Gwen OS}\\[0.3cm]\Large Copiloto personal de Segundo Cerebro y Estudio\\[0.2cm]\large Especificación de Requerimientos de Software (SRS)}
+\title{\textbf{Agent IA}\\[0.3cm]\Large Copiloto personal de Segundo Cerebro y Estudio Multi-Agente\\[0.2cm]\large Especificación de Requerimientos de Software (SRS)}
 \author{Miguel Ángel Polo Castro}
 \date{\today}
 
@@ -66,9 +66,9 @@
 \begin{titlepage}
 \centering
 \vspace*{3cm}
-{\Huge\bfseries Gwen OS \par}
+{\Huge\bfseries Agent IA \par}
 \vspace{0.5cm}
-{\Large Copiloto personal de gestión de conocimiento y estudio \par}
+{\Large Copiloto personal de gestión de conocimiento, estudio y plataforma multi-agente \par}
 \vspace{1.5cm}
 {\large Especificación de Requerimientos de Software (SRS) \par}
 \vspace{0.3cm}
@@ -86,7 +86,7 @@
 
 \section{Introducción y marco metodológico}
 
-Gwen OS es un copiloto personal de inteligencia artificial cuyo propósito es automatizar la organización, relación y mantenimiento del Segundo Cerebro (Notion + Obsidian) y del espacio de estudio de ingeniería de Miguel, reduciendo el trabajo manual actual mediante agentes de IA especializados.
+\textbf{Agent IA} (evolución y formalización del concepto de arquitectura multi-agente) es un copiloto personal de inteligencia artificial cuyo propósito es automatizar la organización, relación y mantenimiento del Segundo Cerebro (Notion + Obsidian) y del espacio de estudio de ingeniería de Miguel, reduciendo el trabajo manual actual mediante agentes de IA especializados y orquestación determinista con Hermes.
 
 Este documento sigue la metodología de ingeniería de requerimientos de tres niveles:
 
@@ -248,12 +248,12 @@ ID & Descripción & Categoría & Prioridad \\
 \midrule
 \endhead
 RNF1 & El sistema debe permitir incorporar nuevos agentes, integraciones o módulos sin reestructurar el dominio base (arquitectura hexagonal). & Escalabilidad & Alta \\
-RNF2 & Toda información personal debe procesarse por defecto con el LLM local; servicios externos (Gemini, NotebookLM) solo de forma explícita y opcional. & Privacidad & Alta \\
-RNF3 & Las respuestas conversacionales deben evitar \emph{cold-starts} del LLM (\texttt{keep\_alive}) manteniendo latencia aceptable. & Rendimiento & Media \\
+RNF2 & Backend Híbrido con Privacidad Local: La inferencia rápida de razonamiento se delega a Gemini Flash (\texttt{gemini-2.5-flash}) protegido obligatoriamente por el middleware local \texttt{DataMasker} (anonimización de PII previa a la red). Los embeddings (\texttt{nomic-embed-text}) y la memoria vectorial (\texttt{ChromaDB}) se mantienen 100\% locales. & Privacidad y Rendimiento & Alta \\
+RNF3 & Las respuestas conversacionales deben mantener una latencia inferior a 2 segundos en modo híbrido optimizado. & Rendimiento & Alta \\
 RNF4 & Los procesos en segundo plano (sincronización, telemetría) deben tolerar fallos de red sin pérdida de datos. & Disponibilidad & Media \\
 RNF5 & La interacción por voz debe soportar español e inglés sin configuración manual de idioma. & Usabilidad & Baja \\
 RNF6 & El código debe respetar estrictamente la separación \texttt{domain}/\texttt{use\_cases}/\texttt{infrastructure}/\texttt{entrypoints}. & Mantenibilidad & Alta \\
-RNF7 & El sistema debe operar en el entorno local (Windows) sin depender de infraestructura en la nube para sus funciones núcleo. & Portabilidad & Media \\
+RNF7 & El sistema debe operar en el entorno local (Windows) con persistencia soberana en disco (Obsidian, ChromaDB, JSON). & Portabilidad & Alta \\
 \bottomrule
 \end{longtable}
 
@@ -528,24 +528,25 @@ Decisión & Justificación \\
 \midrule
 \endhead
 Hermes como orquestador único (no perfiles aislados por agente) & Centraliza la memoria persistente y el modelo de ``quién es Miguel'' en un solo lugar; evita que cada agente construya una versión distinta del usuario. Patrón supervisor/orquestador clásico en sistemas multiagente. \\
-n8n complementa a Hermes, no lo reemplaza & n8n maneja lo determinístico y programado (cron, webhooks); Hermes maneja lo que requiere criterio. Se comunican bidireccionalmente. \\
+Backend Híbrido Gemini Flash + DataMasker vs CPU Pura & En hardware de CPU pura (sin GPU NVIDIA dedicada), los LLMs locales de 7B tardaban más de 2 minutos por turno. Al integrar Gemini Flash (\texttt{gemini-2.5-flash}) con \texttt{thinkingBudget = 0} y un middleware de sanitización local (\texttt{DataMasker}), la latencia cayó a 1.5s (>97\% de mejora) manteniendo la privacidad y los embeddings/vectores 100\% locales en disco. \\
+n8n complementa a Hermes, no lo reemplaza & n8n maneja lo determinístico y programado (cron, webhooks); Hermes maneja lo que requiere criterio. Se comunican bidireccionalmente vía AgenteSync. \\
 Autonomía progresiva solo en \texttt{AgenteCurador} & Es el único agente que toca directamente el Segundo Cerebro sin posibilidad trivial de reversión; los demás agentes (Estudio, Sync, Plan) son autónomos desde el día uno por su menor radio de error. \\
-Gemini y NotebookLM excluidos del flujo automático & RNF2 exige LLM local por defecto; NotebookLM además carece de API pública de consumo, por lo que su uso permanece manual. \\
 Google Calendar en vez de Notion Calendar como motor de sincronización & Notion Calendar no ofrece sincronización bidireccional nativa y confiable con bases de datos de Notion; Google Calendar sí. \\
-Módulos de Finanzas y usuario secundario fuera de alcance & No formaban parte de la reconstrucción del proyecto desde cero; quedan como backlog condicionado a que RNF1 (escalabilidad) se cumpla en la práctica. \\
+Visualizador 3D Isométrico desacoplado del Gateway & El simulador espacial 3D opera en el frontend mediante WebGL/Three.js consumiendo 0\% de CPU en el servidor backend y ofreciendo telemetría visual inmediata. \\
 \bottomrule
 \end{longtable}
 
-\section{Conclusiones y próximos pasos}
+\section{Conclusiones y estado de implementación}
 
-Este documento cierra el ciclo completo de ingeniería de requerimientos para Gwen OS: nivel de negocio, nivel de usuario, nivel de software (funcional y no funcional), casos de uso, clases, arquitectura de componentes, secuencia, integración de API y wireframes --- todo trazable de punta a punta, cada wireframe apunta a un RF, cada RF a un RU, cada RU al objetivo de negocio.
+Este documento cierra el ciclo completo de ingeniería de requerimientos para Agent IA: nivel de negocio, nivel de usuario, nivel de software (funcional y no funcional), casos de uso, clases, arquitectura de componentes, secuencia, integración de API y wireframes --- todo trazable de punta a punta, cada wireframe apunta a un RF, cada RF a un RU, cada RU al objetivo de negocio.
 
-Próximos pasos sugeridos, fuera del alcance de este documento:
+La plataforma cuenta con el 100\% de sus agentes implementados y probados:
 \begin{enumerate}[leftmargin=1.2cm]
-  \item Implementación del perfil de Hermes para \texttt{AgenteCurador} en modo revisión (RF5.4).
-  \item Configuración de los workflows de n8n heredados (sincronización PKM y clasificador de inbox) apuntando al nuevo orquestador.
-  \item Migración de la página \texttt{Proyecto} en Notion para reflejar esta especificación como fuente de verdad vigente.
-  \item Plan de pruebas de aceptación por cada RF, derivado de las prioridades DINO ya asignadas.
+  \item \textbf{Hermes:} Orquestador semántico con clasificación sub-segundo y máquina de estados.
+  \item \textbf{AgenteCurador:} Curaduría con guardrail de confirmación previa y deduplicación en ChromaDB.
+  \item \textbf{AgentePlan:} Planificador estratégico en cascada y creación rápida de tareas.
+  \item \textbf{AgenteEstudio:} Study Board con flashcards atómicas, notas Cornell y repaso espaciado SM-2.
+  \item \textbf{AgenteSync:} Sincronización bidireccional continua Notion $\leftrightarrow$ Obsidian y webhooks para n8n.
 \end{enumerate}
 
 \end{document}
