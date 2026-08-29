@@ -53,6 +53,30 @@ Habla con tono proactivo, fluido y conversacional.
 """
 
 
+SYSTEM_PROMPT_UPDATE_OBJETIVOS = """Eres el AgentePlan de Agent IA.
+Miguel quiere actualizar propiedades reales de sus objetivos en Notion (ej. asignar fechas límite / Deadline para activar el Countdown, cambiar Status, etc.).
+
+Hoy es {fecha_hoy}.
+Dado el listado de objetivos de Miguel y su instrucción:
+1. Calcula la fecha exacta en formato ISO "YYYY-MM-DD" para cada objetivo según los días o meses solicitados (sumando los días a la fecha de hoy {fecha_hoy}).
+2. Opcionalmente asigna el Status ("No empezado", "En progreso", "Completado") si aplica.
+
+Responde SIEMPRE en JSON con esta estructura exacta:
+{
+    "actualizaciones": [
+        {
+            "id": "id_del_objetivo",
+            "titulo": "titulo corto del objetivo",
+            "deadline": "YYYY-MM-DD",
+            "dias_countdown": 30,
+            "status": "En progreso|No empezado|null"
+        }
+    ],
+    "resumen": "Breve explicación de los plazos calculados e impactados en Notion."
+}
+"""
+
+
 class AgentePlan(Agente):
     """AgentePlan — planificación y gestión estratégica en Notion."""
 
@@ -70,7 +94,15 @@ class AgentePlan(Agente):
         if ctx.get("confirmar_propuesta"):
             return await self._aplicar_propuesta(ctx["confirmar_propuesta"])
 
-        # 2. ¿Es una consulta simple de listado de objetivos / metas existentes?
+        # 2. ¿Es una solicitud de ACTUALIZACIÓN / CRUD de propiedades (ej. countdown, deadline, fechas, status)?
+        # e.g. "actualizale el countdown", "ponle fecha limite", "asigna deadlines", "actualiza el status"
+        es_mutacion_propiedades = bool(
+            re.search(r'\b(actualiza(r|le)?|asigna(r|le)?|pon(er|le)?|cambia(r|le)?|agrega(r|le)?)\b.*\b(countdown|deadline|fecha|plazo|status|estado)\b', instruccion_lower)
+        )
+        if es_mutacion_propiedades:
+            return await self._mutar_propiedades_objetivos(instruccion, contexto=ctx)
+
+        # 3. ¿Es una consulta simple de listado de objetivos / metas existentes?
         es_consulta_simple = bool(
             re.match(r'^(mira|ver|mostrar|cu[aá]les son|qu[eé] (tengo|hay)|lista(r)?|dime|consultar)\b.*\b(objetivos|metas|proyectos|planes)\b', instruccion_lower)
         )
@@ -78,12 +110,128 @@ class AgentePlan(Agente):
         if es_consulta_simple:
             return await self._consultar_objetivos_y_metas(instruccion)
 
-        # 3. ¿Es una creación rápida de tarea? (Fast-path sin LLM)
+        # 4. ¿Es una creación rápida de tarea? (Fast-path sin LLM)
         if re.match(r'^(agrega(r)? (una )?tarea|tarea:|recu[eé]rdame que|a[ñn]ade)', instruccion_lower):
             return await self._creacion_rapida_tarea(instruccion)
 
-        # 4. Planificación y estrategia con LLM (con contexto de metas e historial)
+        # 5. Planificación y estrategia con LLM (con contexto de metas e historial)
         return await self._proponer_plan_estrategico(instruccion, contexto=ctx)
+
+    async def _mutar_propiedades_objetivos(self, instruccion: str, contexto: dict | None = None) -> Resultado:
+        """Calcula y aplica mutaciones CRUD directas a las páginas de Notion (ej. Deadlines para activar Countdowns)."""
+        from datetime import date
+        hoy_str = date.today().isoformat()
+
+        objetivos = []
+        try:
+            if hasattr(self._notion, "listar_objetivos"):
+                objetivos = await self._notion.listar_objetivos()
+        except Exception as e:
+            logger.warning("Error consultando Notion para mutar objetivos: %s", e)
+
+        if not objetivos:
+            return Resultado(
+                estado=EstadoResultado.ERROR,
+                mensaje="No encontré objetivos activos en Notion para actualizar.",
+                agente=self.nombre,
+            )
+
+        contexto_notion = "Objetivos actuales en Notion:\n" + "\n".join(
+            f"- ID: `{o['id']}` | Título: {o['titulo']}" for o in objetivos
+        )
+
+        # Extraer historial reciente
+        ctx = contexto or {}
+        historial = ctx.get("historial", [])
+        lineas_hist = []
+        if isinstance(historial, list):
+            for m in historial[-6:]:
+                rol = getattr(m, "role", "") or (m.get("role", "") if isinstance(m, dict) else "")
+                contenido = getattr(m, "content", "") or (m.get("content", "") if isinstance(m, dict) else "")
+                lineas_hist.append(f"{rol}: {contenido}")
+        hist_str = "\n".join(lineas_hist) if lineas_hist else ""
+
+        prompt = (
+            f"{contexto_notion}\n\n"
+            f"Historial reciente del plan conversado:\n{hist_str}\n\n"
+            f"Solicitud de Miguel:\n'{instruccion}'\n\n"
+            f"Determina el JSON de actualizaciones exactas con fecha ISO (YYYY-MM-DD):"
+        )
+
+        system_prompt = SYSTEM_PROMPT_UPDATE_OBJETIVOS.replace("{fecha_hoy}", hoy_str)
+
+        response = await self._llm.generate(
+            prompt=prompt,
+            system=system_prompt,
+            temperature=0.2,
+        )
+
+        try:
+            # Parsear JSON de actualizaciones
+            raw = response.content
+            json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', raw, re.DOTALL)
+            if json_match:
+                raw = json_match.group(1)
+            elif not raw.strip().startswith("{"):
+                brace_match = re.search(r'(\{[\s\S]*"actualizaciones"[\s\S]*\})', raw)
+                if brace_match:
+                    raw = brace_match.group(1)
+
+            data = json.loads(raw)
+            actualizaciones = data.get("actualizaciones", [])
+        except Exception as e:
+            logger.warning("Error parseando mutaciones de objetivos: %s (content: %s)", e, response.content[:150])
+            actualizaciones = []
+
+        if not actualizaciones:
+            return Resultado(
+                estado=EstadoResultado.EXITO,
+                mensaje=response.content,
+                agente=self.nombre,
+            )
+
+        # Ejecutar mutaciones reales en la API de Notion
+        exitos = 0
+        lineas_resumen = []
+        for act in actualizaciones:
+            page_id = act.get("id")
+            deadline = act.get("deadline")
+            status = act.get("status") if act.get("status") != "null" else None
+            titulo = act.get("titulo", "Objetivo")
+
+            if not page_id:
+                # Buscar por match aproximado de título
+                for o in objetivos:
+                    if o["titulo"].lower().startswith(titulo.lower()[:20]):
+                        page_id = o["id"]
+                        break
+
+            if page_id and (deadline or status):
+                try:
+                    await self._notion.actualizar_objetivo(
+                        page_id=page_id,
+                        deadline=deadline,
+                        status=status,
+                    )
+                    exitos += 1
+                    countdown_dias = act.get("dias_countdown", "")
+                    cd_txt = f" (Countdown: ~{countdown_dias} días)" if countdown_dias else ""
+                    lineas_resumen.append(f"• **{titulo[:60]}...** $\\rightarrow$ Deadline: `{deadline}`{cd_txt}")
+                except Exception as e:
+                    logger.warning("Error al actualizar objetivo %s: %s", page_id, e)
+
+        mensaje_final = (
+            f"⚡ **Propiedades actualizadas directamente en Notion ({exitos}/{len(actualizaciones)} objetivos):**\n\n"
+            + "\n".join(lineas_resumen)
+            + "\n\n✨ *Las fórmulas de `Countdown` y `Quarter` en tus tarjetas de Notion se han recalculado automáticamente.*"
+        )
+
+        return Resultado(
+            estado=EstadoResultado.EXITO,
+            mensaje=mensaje_final,
+            datos={"actualizados": exitos, "detalles": actualizaciones},
+            agente=self.nombre,
+        )
 
     async def _consultar_objetivos_y_metas(self, instruccion: str) -> Resultado:
         """Consulta los objetivos y proyectos registrados en Notion y los resume conversacionalmente."""

@@ -140,6 +140,11 @@ class FakeNotion(NotionPort):
     ) -> str:
         return "fake-obj-id"
 
+    async def actualizar_objetivo(
+        self, page_id: str, deadline: str | None = None, status: str | None = None, propiedades: dict | None = None
+    ) -> None:
+        pass
+
     async def listar_tareas_pendientes(self) -> list[Tarea]:
         return []
 

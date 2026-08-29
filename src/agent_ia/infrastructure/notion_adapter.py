@@ -650,6 +650,22 @@ class NotionAdapter(NotionPort):
         """Crea un objetivo en la base de datos 'Objetivos' de Notion."""
         return await self._crear_elemento("Objetivos", titulo, relaciones)
 
+    async def actualizar_objetivo(
+        self,
+        page_id: str,
+        deadline: str | None = None,
+        status: str | None = None,
+        propiedades: dict | None = None,
+    ) -> None:
+        """Actualiza propiedades de un objetivo (como Deadline, Status, etc.)."""
+        props = dict(propiedades or {})
+        if deadline:
+            props["Deadline"] = {"date": {"start": deadline}}
+        if status:
+            props["Status"] = {"status": {"name": status}}
+        await self.actualizar_pagina(page_id=page_id, propiedades=props)
+        logger.info("Objetivo %s actualizado en Notion con propiedades: %s", page_id, list(props.keys()))
+
     # ── Health ──────────────────────────────────────────────────
 
     async def health_check(self) -> bool:

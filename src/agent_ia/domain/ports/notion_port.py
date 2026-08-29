@@ -96,6 +96,12 @@ class NotionPort(ABC):
             El page_id de la página creada.
         """
 
+    @abstractmethod
+    async def actualizar_objetivo(
+        self, page_id: str, deadline: str | None = None, status: str | None = None, propiedades: dict | None = None
+    ) -> None:
+        """Actualiza las propiedades de un objetivo existente en Notion (como Deadline, Status, etc.)."""
+
     # --- Tareas ---
 
     @abstractmethod

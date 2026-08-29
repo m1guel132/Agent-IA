@@ -63,6 +63,11 @@ class DummyNotion(NotionPort):
         self.objetivos_creados.append({"titulo": titulo, "relaciones": relaciones})
         return f"obj-{len(self.objetivos_creados)}"
 
+    async def actualizar_objetivo(
+        self, page_id: str, deadline: str | None = None, status: str | None = None, propiedades: dict | None = None
+    ) -> None:
+        pass
+
     async def crear_proyecto(self, titulo: str, relaciones: dict[str, str] | None = None) -> str:
         self.proyectos_creados.append({"titulo": titulo, "relaciones": relaciones})
         return f"proj-{len(self.proyectos_creados)}"
@@ -196,3 +201,29 @@ async def test_ejecutar_consultar_objetivos_existentes():
     assert resultado.estado == EstadoResultado.EXITO
     assert "Aprobar Redes" in resultado.mensaje
     assert len(resultado.datos["objetivos"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_ejecutar_mutar_propiedades_objetivos():
+    """Verifica que el agente pueda aplicar mutaciones CRUD a las propiedades de objetivos en Notion."""
+    notion = DummyNotion()
+    mock_payload = json.dumps({
+        "actualizaciones": [
+            {
+                "id": "obj-1",
+                "titulo": "Aprobar Redes",
+                "deadline": "2026-05-15",
+                "dias_countdown": 30,
+                "status": "En progreso"
+            }
+        ],
+        "resumen": "Deadline asignado a 30 días."
+    })
+    llm = DummyLLM(response_text=mock_payload)
+    agente = AgentePlan(llm=llm, notion=notion)
+
+    resultado = await agente.ejecutar("actualizale el countdown y deadline a mis objetivos")
+
+    assert resultado.estado == EstadoResultado.EXITO
+    assert "Propiedades actualizadas directamente en Notion" in resultado.mensaje
+    assert resultado.datos["actualizados"] == 1
