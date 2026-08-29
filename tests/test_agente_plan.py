@@ -127,15 +127,17 @@ async def test_ejecutar_planEstrategico_proponePlanConObjetivoYProyectos():
 
 
 @pytest.mark.asyncio
-async def test_ejecutar_planEstrategicoJsonInvalido_retornaError():
+async def test_ejecutar_planEstrategicoTextoLibre_retornaRespuestaConversacional():
+    """Verifica que si el LLM responde con análisis o plan en texto libre, se entregue como respuesta fluida."""
     notion = DummyNotion()
-    llm = DummyLLM(response_text="Error: no es un JSON válido...")
+    llm = DummyLLM(response_text="Aquí tienes una hoja de ruta estratégica en 3 fases para tus objetivos...")
     agente = AgentePlan(llm=llm, notion=notion)
 
-    resultado = await agente.ejecutar("Quiero crear un plan de lectura")
+    resultado = await agente.ejecutar("puedes hacer un plan para cumplir esos objetivos")
 
-    assert resultado.estado == EstadoResultado.ERROR
-    assert "No pude estructurar el plan" in resultado.mensaje
+    assert resultado.estado == EstadoResultado.EXITO
+    assert "hoja de ruta estratégica" in resultado.mensaje
+    assert resultado.agente == "AgentePlan"
 
 
 @pytest.mark.asyncio

@@ -19,29 +19,32 @@ from agent_ia.domain.ports.notion_port import NotionPort
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT_ESTRATEGA = """Eres el AgentePlan de Agent IA, el estratega personal de Miguel.
-Miguel quiere lograr una meta, mejorar en algún aspecto académico/personal, o planificar un proyecto complejo.
+SYSTEM_PROMPT_ESTRATEGA = """Eres el AgentePlan de Agent IA, el estratega senior de metas, productividad y proyectos de Miguel.
 
-Tu objetivo es desglosar su meta en un plan estructurado para su Segundo Cerebro en Notion.
-Debes proponer exactamente:
-1. UN Objetivo principal.
-2. UNO O VARIOS Proyectos necesarios para alcanzar ese objetivo.
-3. VARIAS Tareas accionables asignadas a cada proyecto.
+Tu misión es transformar ambiciones y metas en planes realistas, estructurados y de alto impacto.
 
-Responde SIEMPRE en JSON con esta estructura exacta:
-{
-    "objetivo": {
-        "titulo": "Nombre del objetivo (ej. Aprobar Física Electromagnética)",
-        "area": "Nombre del área sugerida (ej. Universidad)"
-    },
-    "proyectos": [
-        {
-            "titulo": "Nombre del proyecto",
-            "tareas": ["Tarea 1", "Tarea 2"]
-        }
-    ],
-    "razon": "Breve explicación motivadora de por qué este plan le ayudará a lograr su meta."
-}
+Directrices de razonamiento:
+1. Contexto y memoria: Conoces los objetivos que Miguel ya tiene en su Segundo Cerebro (Notion) y recuerdas la conversación reciente.
+2. Si Miguel pide un plan de acción, priorización o estrategia para metas ya existentes o múltiples objetivos:
+   - Actúa como un asesor estratégico: evita la sobrecarga cognitiva de hacer 7 cosas a la vez.
+   - Agrupa en Fases cronológicas de ejecución (ej. Fase 1: Victorias Rápidas, Fase 2: Enfoque Académico/Profesional, Fase 3: Hábitos y Consistencia).
+   - Detalla prioridades inmediatas, métricas de éxito y próximos pasos accionables.
+   - Responde en Markdown estructurado, fluido y profesional.
+3. Si Miguel pide planificar una META NUEVA o proyecto específico para guardarlo en Notion:
+   - Desglósalo en 1 Objetivo, 1-3 Proyectos y Tareas concretas respondiendo en JSON:
+   {
+       "objetivo": {
+           "titulo": "Nombre del objetivo",
+           "area": "Área sugerida"
+       },
+       "proyectos": [
+           {
+               "titulo": "Nombre del proyecto",
+               "tareas": ["Tarea 1", "Tarea 2"]
+           }
+       ],
+       "razon": "Explicación estratégica"
+   }
 """
 
 SYSTEM_PROMPT_PLAN_CONSULTA = """Eres el AgentePlan de Agent IA, el estratega personal de metas y proyectos de Miguel.
@@ -67,21 +70,20 @@ class AgentePlan(Agente):
         if ctx.get("confirmar_propuesta"):
             return await self._aplicar_propuesta(ctx["confirmar_propuesta"])
 
-        # 2. ¿Es una consulta de objetivos / metas / proyectos existentes?
-        # e.g. "mira mis objetivos", "cuáles son mis metas", "qué metas tengo", "lista mis proyectos"
-        es_consulta_objetivos = bool(
-            re.search(r'\b(mira|ver|mostrar|cu[aá]les son|qu[eé] (tengo|hay)|lista(r)?|dime|consultar)\b.*\b(objetivos|metas|proyectos|planes)\b', instruccion_lower)
-        ) or ("objetivos" in instruccion_lower and not re.search(r'\b(crea|agrega|nuevo|planifica|diseña)\b', instruccion_lower))
+        # 2. ¿Es una consulta simple de listado de objetivos / metas existentes?
+        es_consulta_simple = bool(
+            re.match(r'^(mira|ver|mostrar|cu[aá]les son|qu[eé] (tengo|hay)|lista(r)?|dime|consultar)\b.*\b(objetivos|metas|proyectos|planes)\b', instruccion_lower)
+        )
 
-        if es_consulta_objetivos:
+        if es_consulta_simple:
             return await self._consultar_objetivos_y_metas(instruccion)
 
         # 3. ¿Es una creación rápida de tarea? (Fast-path sin LLM)
         if re.match(r'^(agrega(r)? (una )?tarea|tarea:|recu[eé]rdame que|a[ñn]ade)', instruccion_lower):
             return await self._creacion_rapida_tarea(instruccion)
 
-        # 4. Planificación estratégica con LLM
-        return await self._proponer_plan_estrategico(instruccion)
+        # 4. Planificación y estrategia con LLM (con contexto de metas e historial)
+        return await self._proponer_plan_estrategico(instruccion, contexto=ctx)
 
     async def _consultar_objetivos_y_metas(self, instruccion: str) -> Resultado:
         """Consulta los objetivos y proyectos registrados en Notion y los resume conversacionalmente."""
@@ -178,49 +180,99 @@ class AgentePlan(Agente):
                 agente=self.nombre,
             )
 
-    async def _proponer_plan_estrategico(self, instruccion: str) -> Resultado:
-        """Usa el LLM para desglosar la meta en un JSON y espera confirmación."""
+    async def _proponer_plan_estrategico(self, instruccion: str, contexto: dict | None = None) -> Resultado:
+        """Usa el LLM con memoria conversacional y objetivos existentes para elaborar una estrategia."""
         logger.info("AgentePlan iniciando planificación estratégica...")
-        
+        ctx = contexto or {}
+
+        # 1. Recuperar objetivos existentes de Notion para contexto
+        objetivos = []
+        try:
+            if hasattr(self._notion, "listar_objetivos"):
+                objetivos = await self._notion.listar_objetivos()
+        except Exception:
+            pass
+
+        # 2. Extraer historial reciente si está disponible
+        historial = ctx.get("historial", [])
+        lineas_historial = []
+        if isinstance(historial, list):
+            for m in historial[-6:]:
+                rol = getattr(m, "role", "") or (m.get("role", "") if isinstance(m, dict) else "")
+                contenido = getattr(m, "content", "") or (m.get("content", "") if isinstance(m, dict) else "")
+                autor = "Miguel" if rol == "user" else "AgentePlan"
+                lineas_historial.append(f"{autor}: {contenido}")
+        contexto_historial = "\n".join(lineas_historial) if lineas_historial else ""
+
+        bloque_objetivos = (
+            "\n".join(f"- 🎯 {o['titulo']} (Área: {o.get('area', 'General')})" for o in objetivos)
+            if objetivos
+            else "Sin objetivos previos registrados."
+        )
+
+        prompt = (
+            f"Objetivos actualmente registrados en el Segundo Cerebro de Miguel:\n{bloque_objetivos}\n\n"
+            f"Historial reciente del diálogo:\n{contexto_historial}\n\n"
+            f"Petición actual de Miguel:\n'{instruccion}'\n\n"
+            f"Elabora el plan estratégico o respuesta correspondiente:"
+        )
+
         response = await self._llm.generate(
-            prompt=f"El usuario dice: '{instruccion}'. Elabora el plan estratégico.",
+            prompt=prompt,
             system=SYSTEM_PROMPT_ESTRATEGA,
             temperature=0.4,
         )
 
+        # 3. Intentar extraer JSON si el LLM generó una propuesta estructurada de creación para Notion
+        plan = None
         try:
             plan = json.loads(response.content)
-        except json.JSONDecodeError:
-            logger.error("LLM no devolvió JSON válido en AgentePlan: %s", response.content)
+        except Exception:
+            # Buscar bloque JSON dentro de markdown o llaves
+            json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response.content, re.DOTALL)
+            if json_match:
+                try:
+                    plan = json.loads(json_match.group(1))
+                except Exception:
+                    pass
+            if not plan:
+                brace_match = re.search(r'(\{[\s\S]*"objetivo"[\s\S]*\})', response.content)
+                if brace_match:
+                    try:
+                        plan = json.loads(brace_match.group(1))
+                    except Exception:
+                        pass
+
+        # Si es un plan JSON estructurado para persistir en Notion (1 objetivo + proyectos)
+        if plan and isinstance(plan, dict) and "objetivo" in plan and isinstance(plan["objetivo"], dict):
+            propuesta_id = str(uuid.uuid4())[:8]
+            self._propuestas_pendientes[propuesta_id] = plan
+
+            obj_tit = plan.get("objetivo", {}).get("titulo", "Nuevo Objetivo")
+            obj_area = plan.get("objetivo", {}).get("area", "Universidad")
+
+            mensaje = f"💡 **Propuesta de Plan Estratégico para Notion:**\n\n"
+            mensaje += f"*{plan.get('razon', 'Vamos a estructurar esta meta.')}*\n\n"
+            mensaje += f"🎯 **Objetivo:** {obj_tit} (Área: `{obj_area}`)\n"
+
+            for p in plan.get("proyectos", []):
+                mensaje += f"\n📁 **Proyecto:** {p.get('titulo')}\n"
+                for t in p.get("tareas", []):
+                    mensaje += f"  - [ ] {t}\n"
+
+            mensaje += "\n¿Quieres que implemente este plan en tu Segundo Cerebro? (Responde 'sí' para confirmar)."
+
             return Resultado(
-                estado=EstadoResultado.ERROR,
-                mensaje="No pude estructurar el plan correctamente. Intenta reformular tu meta.",
+                estado=EstadoResultado.REQUIERE_CONFIRMACION,
+                mensaje=mensaje,
+                accion_pendiente=propuesta_id,
                 agente=self.nombre,
             )
 
-        # Guardar en propuestas pendientes
-        propuesta_id = str(uuid.uuid4())[:8]
-        self._propuestas_pendientes[propuesta_id] = plan
-
-        # Formatear la propuesta para mostrársela al usuario
-        obj_tit = plan.get("objetivo", {}).get("titulo", "Nuevo Objetivo")
-        obj_area = plan.get("objetivo", {}).get("area", "Universidad")
-        
-        mensaje = f"💡 **Propuesta de Plan Estratégico:**\n\n"
-        mensaje += f"*{plan.get('razon', 'Vamos a mejorar en esto.')}*\n\n"
-        mensaje += f"🎯 **Objetivo:** {obj_tit} (Área: {obj_area})\n"
-        
-        for p in plan.get("proyectos", []):
-            mensaje += f"\n📁 **Proyecto:** {p.get('titulo')}\n"
-            for t in p.get("tareas", []):
-                mensaje += f"  - [ ] {t}\n"
-
-        mensaje += "\n¿Quieres que implemente este plan en tu Segundo Cerebro? (Responde 'sí' para confirmar)."
-
+        # Si el LLM devolvió una hoja de ruta o análisis estratégico conversacional en Markdown:
         return Resultado(
-            estado=EstadoResultado.REQUIERE_CONFIRMACION,
-            mensaje=mensaje,
-            accion_pendiente=propuesta_id,
+            estado=EstadoResultado.EXITO,
+            mensaje=response.content,
             agente=self.nombre,
         )
 
