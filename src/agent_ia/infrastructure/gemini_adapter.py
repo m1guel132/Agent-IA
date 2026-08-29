@@ -82,41 +82,55 @@ class GeminiAdapter(LLMPort):
         clean_model = self._model.removeprefix("models/")
         url = f"{GEMINI_BASE_URL}/models/{clean_model}:generateContent?key={self._api_key}"
 
-        try:
-            async with httpx.AsyncClient(timeout=45.0) as client:
-                resp = await client.post(url, json=payload)
-                resp.raise_for_status()
-                data = resp.json()
+        max_intentos = 2
+        for intento in range(max_intentos):
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    resp = await client.post(url, json=payload)
+                    resp.raise_for_status()
+                    data = resp.json()
 
-            candidates = data.get("candidates", [])
-            if not candidates:
-                raise ValueError(f"Gemini no devolvió candidatos válidos: {data}")
+                candidates = data.get("candidates", [])
+                if not candidates:
+                    raise ValueError(f"Gemini no devolvió candidatos válidos: {data}")
 
-            parts = candidates[0].get("content", {}).get("parts", [])
-            raw_content = parts[0].get("text", "") if parts else ""
+                parts = candidates[0].get("content", {}).get("parts", [])
+                raw_content = parts[0].get("text", "") if parts else ""
 
-            # Limpiar bloques markdown ```json ... ``` si el modelo los envolvió
-            cleaned_content = self._clean_json_wrapper(raw_content)
+                # Limpiar bloques markdown ```json ... ``` si el modelo los envolvió
+                cleaned_content = self._clean_json_wrapper(raw_content)
 
-            # 3. Desofuscar / Restituir datos originales locales
-            final_content = self._masker.unmask(cleaned_content, mask_result.mapping)
+                # 3. Desofuscar / Restituir datos originales locales
+                final_content = self._masker.unmask(cleaned_content, mask_result.mapping)
 
-            usage = data.get("usageMetadata", {})
-            tokens = usage.get("totalTokenCount", 0)
+                usage = data.get("usageMetadata", {})
+                tokens = usage.get("totalTokenCount", 0)
 
-            logger.debug("Gemini generate: %d tokens, model=%s", tokens, self._model)
-            return LLMResponse(
-                content=final_content,
-                model=self._model,
-                tokens_used=tokens,
-            )
+                logger.debug("Gemini generate: %d tokens, model=%s", tokens, self._model)
+                return LLMResponse(
+                    content=final_content,
+                    model=self._model,
+                    tokens_used=tokens,
+                )
 
-        except Exception as e:
-            logger.exception("Error al llamar a Gemini API (%s)", e)
-            if self._fallback_llm:
-                logger.warning("Fallo en Gemini. Activando fallback a LLM local.")
-                return await self._fallback_llm.generate(prompt, system=system, temperature=temperature)
-            raise
+            except (httpx.HTTPStatusError, httpx.TimeoutException, httpx.NetworkError) as e:
+                # Si es un error transitorio de servidor (503, 500, 429) o timeout, reintentar una vez
+                if intento < max_intentos - 1:
+                    logger.warning("Fallo transitorio en Gemini (%s). Reintentando en 0.5s...", e)
+                    import asyncio
+                    await asyncio.sleep(0.5)
+                    continue
+
+                logger.warning("Gemini no disponible tras reintentos (%s). Activando fallback a LLM local.", e)
+                if self._fallback_llm:
+                    return await self._fallback_llm.generate(prompt, system=system, temperature=temperature)
+                raise
+            except Exception as e:
+                logger.exception("Error al llamar a Gemini API (%s)", e)
+                if self._fallback_llm:
+                    logger.warning("Fallo en Gemini. Activando fallback a LLM local.")
+                    return await self._fallback_llm.generate(prompt, system=system, temperature=temperature)
+                raise
 
     async def embed(self, text: str) -> list[float]:
         """Genera embeddings usando la API de Gemini o el fallback local."""
